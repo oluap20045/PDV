@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Serviço da aplicação web (Python/Flask)
+  web:
+    build: .
+    container_name: pdv_web
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app  # Mapeia o código local para dentro do container para desenvolvimento
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - DATABASE_URL=mysql+mysqlconnector://user:password@db/pdv_db
+    depends_on:
+      - db
+
+  # Serviço do banco de dados (MySQL)
+  db:
+    image: mysql:8.0
+    container_name: pdv_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: pdv_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306" # Mapeia a porta do container para a 3307 na sua máquina local
+
+volumes:
+  mysql_data:

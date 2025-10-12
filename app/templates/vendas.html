@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Histórico de Vendas Realizadas</h2>
+
+    <div class="card bg-light mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('main.vendas_realizadas') }}">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label for="data_inicio" class="form-label">Data Início</label>
+                        <input type="date" class="form-control" id="data_inicio" name="data_inicio" value="{{ data_inicio or '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="data_fim" class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" id="data_fim" name="data_fim" value="{{ data_fim or '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>Resumo do Período</strong>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-6">
+                    <h4>Total Vendido</h4>
+                    <h3 class="text-primary">R$ {{ "%.2f"|format(total_vendido) }}</h3>
+                </div>
+                <div class="col-md-6">
+                    <h4>Lucro Apurado</h4>
+                    <h3 class="text-success">R$ {{ "%.2f"|format(lucro_total) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if vendas %}
+        {% for venda in vendas %}
+        {% set lucro_total_venda = [0] %}
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between">
+                <strong>Venda #{{ venda.id }}</strong>
+                <span>Data: {{ venda.data.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Qtd</th>
+                            <th>Preço Unit.</th>
+                            <th>Custo Unit.</th>
+                            <th>Lucro Item</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in venda.itens %}
+                        {% set lucro_item = (item.preco_unitario - item.custo_unitario) * item.quantidade %}
+                        {% if lucro_total_venda.append(lucro_total_venda.pop() + lucro_item) %}{% endif %}
+
+                        <tr>
+                            <td>{{ item.produto.nome }}</td>
+                            <td>{{ item.quantidade }}</td>
+                            <td>R$ {{ "%.2f"|format(item.preco_unitario) }}</td>
+                            <td>R$ {{ "%.2f"|format(item.custo_unitario) }}</td>
+                            <td>R$ {{ "%.2f"|format(lucro_item) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer text-end">
+                <h5 class="mb-1">Total da Venda: R$ {{ "%.2f"|format(venda.total) }}</h5>
+                <h5 class="text-success">Lucro Total: R$ {{ "%.2f"|format(lucro_total_venda[0]) }}</h5>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">Nenhuma venda encontrada para o período selecionado.</div>
+    {% endif %}
+
+    <div class="mt-4 d-flex justify-content-center">
+        <nav>
+            <ul class="pagination">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('main.vendas_realizadas', page=pagination.prev_num, data_inicio=data_inicio, data_fim=data_fim) }}">Anterior</a>
+                </li>
+
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('main.vendas_realizadas', page=page_num, data_inicio=data_inicio, data_fim=data_fim) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('main.vendas_realizadas', page=pagination.next_num, data_inicio=data_inicio, data_fim=data_fim) }}">Próxima</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+{% endblock %}

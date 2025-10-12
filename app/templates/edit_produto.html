@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Editar Produto: {{ produto.nome }}</h2>
+    
+    <form method="POST">
+        <div class="mb-3">
+            <label for="nome" class="form-label">Nome do Produto</label>
+            <input type="text" name="nome" id="nome" class="form-control" value="{{ produto.nome }}" required>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label for="preco" class="form-label">Preço de Venda (R$)</label>
+                <input type="number" step="0.01" name="preco" id="preco" class="form-control" value="{{ produto.preco }}" required>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="custo" class="form-label">Custo (R$)</label>
+                <input type="number" step="0.01" name="custo" id="custo" class="form-control" value="{{ produto.custo }}" required>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="quantidade" class="form-label">Quantidade em Estoque</label>
+                <input type="number" name="quantidade" id="quantidade" class="form-control" value="{{ produto.quantidade }}" required>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="quantidade" class="form-label">Quantidade em Estoque</label>
+                <input type="number" name="quantidade" id="quantidade" class="form-control" value="{{ produto.quantidade }}" required>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label for="estoque_minimo" class="form-label">Estoque Mínimo</label>
+                <input type="number" name="estoque_minimo" id="estoque_minimo" class="form-control" value="{{ produto.estoque_minimo }}" required>
+            </div>
+        </div>
+        <a href="{{ url_for('main.produtos') }}" class="btn btn-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+    </form>
+{% endblock %}

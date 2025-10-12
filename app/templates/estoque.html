@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Controle de Estoque</h2>
+
+    <div class="card bg-light mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('main.estoque') }}">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Buscar por nome do produto..." name="search" value="{{ search or '' }}">
+                    <button class="btn btn-primary" type="submit">Buscar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                {% set next_order = 'desc' if order == 'asc' else 'asc' %}
+                <th><a href="{{ url_for('main.estoque', sort_by='nome', order=next_order if sort_by == 'nome' else 'asc', search=search) }}">Nome do Produto {% if sort_by == 'nome' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
+                <th><a href="{{ url_for('main.estoque', sort_by='quantidade', order=next_order if sort_by == 'quantidade' else 'asc', search=search) }}">Qtd. Disponível {% if sort_by == 'quantidade' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
+                <th><a href="{{ url_for('main.estoque', sort_by='estoque_minimo', order=next_order if sort_by == 'estoque_minimo' else 'asc', search=search) }}">Estoque Mínimo {% if sort_by == 'estoque_minimo' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for produto in produtos %}
+            <tr class="{{ 'table-warning' if produto.quantidade <= produto.estoque_minimo and produto.estoque_minimo > 0 else '' }}">
+                <td>{{ produto.nome }}</td>
+                <td>{{ produto.quantidade }}</td>
+                <td>{{ produto.estoque_minimo }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

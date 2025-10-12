@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>PDV - Ponto de Venda</h2>
+    <div class="row">
+        <div class="col-md-5">
+            <h4>Adicionar Produto</h4>
+            <div class="mb-3">
+                <label for="produto-select" class="form-label">Produto</label>
+                <select id="produto-select" class="form-select">
+                    <option selected disabled>Selecione um produto...</option>
+                    {% for p in produtos %}
+                    <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-preco="{{ p.preco }}">
+                        {{ p.nome }} (R$ {{ "%.2f"|format(p.preco) }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="quantidade-input" class="form-label">Quantidade</label>
+                <input type="number" id="quantidade-input" class="form-control" value="1" min="1">
+            </div>
+            <button id="add-to-cart-btn" class="btn btn-primary">Adicionar ao Carrinho</button>
+        </div>
+
+        <div class="col-md-7">
+            <h4>Carrinho</h4>
+            <form id="venda-form" method="POST">
+                <table class="table">
+                    <thead><tr><th>Produto</th><th>Qtd</th><th>Preço Unit.</th><th>Subtotal</th><th>Ação</th></tr></thead>
+                    <tbody id="carrinho-body"></tbody>
+                </table>
+                <hr>
+                <h3 class="text-end">Total: <span id="total-venda">R$ 0.00</span></h3>
+                <button type="submit" class="btn btn-success float-end mt-3">Finalizar Venda</button>
+            </form>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const produtoSelect = document.getElementById('produto-select');
+    const quantidadeInput = document.getElementById('quantidade-input');
+    const addToCartBtn = document.getElementById('add-to-cart-btn');
+    const carrinhoBody = document.getElementById('carrinho-body');
+    const totalVendaSpan = document.getElementById('total-venda');
+    const vendaForm = document.getElementById('venda-form');
+    let total = 0;
+
+    addToCartBtn.addEventListener('click', () => {
+        const selectedOption = produtoSelect.options[produtoSelect.selectedIndex];
+        if (selectedOption.disabled) return;
+
+        const produtoId = selectedOption.value;
+        const produtoNome = selectedOption.dataset.nome;
+        const produtoPreco = parseFloat(selectedOption.dataset.preco);
+        const quantidade = parseInt(quantidadeInput.value);
+        const subtotal = produtoPreco * quantidade;
+
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td>${produtoNome} <input type="hidden" name="carrinho[]" value="${produtoId}|${quantidade}"></td>
+            <td>${quantidade}</td>
+            <td>R$ ${produtoPreco.toFixed(2)}</td>
+            <td>R$ ${subtotal.toFixed(2)}</td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="removerItem(this, ${subtotal})">Remover</button></td>
+        `;
+        carrinhoBody.appendChild(newRow);
+        
+        total += subtotal;
+        totalVendaSpan.innerText = `R$ ${total.toFixed(2)}`;
+    });
+});
+
+function removerItem(button, subtotal) {
+    const row = button.closest('tr');
+    row.remove();
+    
+    let totalSpan = document.getElementById('total-venda');
+    let currentTotal = parseFloat(totalSpan.innerText.replace('R$ ', ''));
+    let newTotal = currentTotal - subtotal;
+    totalSpan.innerText = `R$ ${newTotal.toFixed(2)}`;
+}
+</script>
+{% endblock %}
