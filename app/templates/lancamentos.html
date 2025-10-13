@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Painel Financeiro</h2>
+
+    <div class="card bg-light mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('main.lancamentos') }}">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label for="data_inicio" class="form-label">Vencimento Início</label>
+                        <input type="date" class="form-control" id="data_inicio" name="data_inicio" value="{{ data_inicio or '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="data_fim" class="form-label">Vencimento Fim</label>
+                        <input type="date" class="form-control" id="data_fim" name="data_fim" value="{{ data_fim or '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="todos" {% if status_filtro == 'todos' %}selected{% endif %}>Todos</option>
+                            <option value="aberto" {% if status_filtro == 'aberto' %}selected{% endif %}>Em Aberto</option>
+                            <option value="quitado" {% if status_filtro == 'quitado' %}selected{% endif %}>Quitado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="tipo" class="form-label">Tipo</label>
+                        <select name="tipo" id="tipo" class="form-select">
+                            <option value="todos" {% if tipo_filtro == 'todos' %}selected{% endif %}>Todos</option>
+                            <option value="pagar" {% if tipo_filtro == 'pagar' %}selected{% endif %}>A Pagar</option>
+                            <option value="receber" {% if tipo_filtro == 'receber' %}selected{% endif %}>A Receber</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card bg-light mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Novo Lançamento</h5>
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="descricao" class="form-label">Descrição</label>
+                        <input type="text" name="descricao" id="descricao" class="form-control" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="valor" class="form-label">Valor (R$)</label>
+                        <input type="number" step="0.01" name="valor" id="valor" class="form-control" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="data_vencimento" class="form-label">Data de Vencimento</label>
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control" required>
+                    </div>
+                </div>
+                <div class="row align-items-end">
+                    <div class="col-md-5 mb-3">
+                        <label for="conta_id" class="form-label">Conta</label>
+                        <select name="conta_id" id="conta_id" class="form-select" required>
+                            <option selected disabled>Selecione...</option>
+                            {% for conta in contas %}
+                            <option value="{{ conta.id }}">{{ conta.grupo.nome }} / {{ conta.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Tipo</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="tipo" id="tipoPagar" value="PAGAR" checked>
+                            <label class="form-check-label" for="tipoPagar">A Pagar</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="tipo" id="tipoReceber" value="RECEBER">
+                            <label class="form-check-label" for="tipoReceber">A Receber</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <button type="submit" class="btn btn-primary w-100">Adicionar Lançamento</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h3><span class="badge bg-danger">A Pagar</span></h3>
+            <div class="list-group">
+                {% for l in a_pagar %}
+                    <div class="list-group-item list-group-item-action flex-column align-items-start {% if not l.data_pagamento and l.data_vencimento < hoje %}list-group-item-danger{% elif l.data_pagamento %}list-group-item-light text-muted{% endif %}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">{{ l.descricao }}</h5>
+                            <small>Vence: {{ l.data_vencimento.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                        <p class="mb-1"><strong>R$ {{ "%.2f"|format(l.valor) }}</strong> - {{ l.conta.nome }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small>
+                                {% if l.data_pagamento %}
+                                    Pago em {{ l.data_pagamento.strftime('%d/%m/%Y') }}
+                                {% else %}
+                                    <span class="fw-bold">Em Aberto</span>
+                                {% endif %}
+                            </small>
+                            <div>
+                                {% if not l.data_pagamento %}
+                                <form method="POST" action="{{ url_for('main.quitar_lancamento', id=l.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-success btn-sm">Quitar</button>
+                                </form>
+                                {% endif %}
+                                <a href="{{ url_for('main.edit_lancamento', id=l.id) }}" class="btn btn-warning btn-sm">Editar</a>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="list-group-item">Nenhuma conta a pagar para o período selecionado.</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <h3><span class="badge bg-success">A Receber</span></h3>
+            <div class="list-group">
+                {% for l in a_receber %}
+                    <div class="list-group-item list-group-item-action flex-column align-items-start {% if not l.data_pagamento and l.data_vencimento < hoje %}list-group-item-warning{% elif l.data_pagamento %}list-group-item-light text-muted{% endif %}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">{{ l.descricao }}</h5>
+                            <small>Vence: {{ l.data_vencimento.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                        <p class="mb-1"><strong>R$ {{ "%.2f"|format(l.valor) }}</strong> - {{ l.conta.nome }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small>
+                                {% if l.data_pagamento %}
+                                    Recebido em {{ l.data_pagamento.strftime('%d/%m/%Y') }}
+                                {% else %}
+                                    <span class="fw-bold">Em Aberto</span>
+                                {% endif %}
+                            </small>
+                            <div>
+                                {% if not l.data_pagamento %}
+                                <form method="POST" action="{{ url_for('main.quitar_lancamento', id=l.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-success btn-sm">Quitar</button>
+                                </form>
+                                {% endif %}
+                                <a href="{{ url_for('main.edit_lancamento', id=l.id) }}" class="btn btn-warning btn-sm">Editar</a>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="list-group-item">Nenhuma conta a receber para o período selecionado.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+{% endblock %}

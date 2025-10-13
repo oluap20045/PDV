@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Editar Lançamento: {{ lancamento.descricao }}</h2>
+
+    <form method="POST">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="descricao" class="form-label">Descrição</label>
+                <input type="text" name="descricao" id="descricao" class="form-control" value="{{ lancamento.descricao }}" required>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="valor" class="form-label">Valor (R$)</label>
+                <input type="number" step="0.01" name="valor" id="valor" class="form-control" value="{{ lancamento.valor }}" required>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="data_vencimento" class="form-label">Data de Vencimento</label>
+                <input type="date" name="data_vencimento" id="data_vencimento" class="form-control" value="{{ lancamento.data_vencimento.strftime('%Y-%m-%d') }}" required>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-5 mb-3">
+                <label for="conta_id" class="form-label">Conta</label>
+                <select name="conta_id" id="conta_id" class="form-select" required>
+                    {% for conta in contas %}
+                    <option value="{{ conta.id }}" {% if conta.id == lancamento.conta_id %}selected{% endif %}>
+                        {{ conta.grupo.nome }} / {{ conta.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Tipo</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="tipo" id="tipoPagar" value="PAGAR" {% if lancamento.tipo == 'PAGAR' %}checked{% endif %}>
+                    <label class="form-check-label" for="tipoPagar">A Pagar</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="tipo" id="tipoReceber" value="RECEBER" {% if lancamento.tipo == 'RECEBER' %}checked{% endif %}>
+                    <label class="form-check-label" for="tipoReceber">A Receber</label>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="data_pagamento" class="form-label">Data de Pagamento (opcional)</label>
+                <input type="date" name="data_pagamento" id="data_pagamento" class="form-control" value="{{ lancamento.data_pagamento.strftime('%Y-%m-%d') if lancamento.data_pagamento }}">
+            </div>
+        </div>
+        <a href="{{ url_for('main.lancamentos') }}" class="btn btn-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+    </form>
+{% endblock %}

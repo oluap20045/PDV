@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h2>Gerenciar Contas e Grupos</h2>
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Grupos de Contas</h3>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="input-group">
+                            <input type="text" name="nome_grupo" class="form-control" placeholder="Novo Grupo" required>
+                            <button type="submit" class="btn btn-primary">Adicionar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <ul class="list-group">
+                {% for grupo in grupos %}
+                <li class="list-group-item">{{ grupo.nome }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <h3>Contas</h3>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <input type="text" name="nome_conta" class="form-control" placeholder="Nova Conta" required>
+                        </div>
+                        <div class="input-group">
+                            <select name="grupo_id" class="form-select" required>
+                                <option selected disabled>Selecione um Grupo...</option>
+                                {% for grupo in grupos %}
+                                <option value="{{ grupo.id }}">{{ grupo.nome }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-primary">Adicionar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <ul class="list-group">
+                {% for conta in contas %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ conta.nome }}
+                    <span class="badge bg-secondary rounded-pill">{{ conta.grupo.nome }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+{% endblock %}
