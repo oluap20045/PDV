@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
 from app.models import Produto, Venda, ItemVenda
-from app.models import GrupoConta, Conta, Lancamento
-
+from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
+from app.models import Compra, CompraItem
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
 
@@ -332,3 +332,165 @@ def quitar_lancamento(id):
     status = "paga" if lancamento.tipo == 'PAGAR' else "recebida"
     flash(f'Conta "{lancamento.descricao}" marcada como {status}!', 'info')
     return redirect(url_for('main.lancamentos'))
+
+@bp.route('/fornecedores', methods=['GET', 'POST'])
+def fornecedores():
+    if request.method == 'POST':
+        novo_fornecedor = Fornecedor(nome=request.form['nome_fornecedor'])
+        db.session.add(novo_fornecedor)
+        db.session.commit()
+        flash('Fornecedor cadastrado com sucesso!', 'success')
+        return redirect(url_for('main.fornecedores'))
+    
+    lista_fornecedores = Fornecedor.query.order_by(Fornecedor.nome).all()
+    return render_template('fornecedores.html', fornecedores=lista_fornecedores)
+
+
+@bp.route('/compras')
+def compras():
+    # Parâmetros da URL
+    page = request.args.get('page', 1, type=int)
+    data_inicio_str = request.args.get('data_inicio')
+    data_fim_str = request.args.get('data_fim')
+    sort_by = request.args.get('sort_by', 'data_compra') # Padrão
+    order = request.args.get('order', 'desc') # Padrão
+
+    query = Compra.query
+
+    # Filtro de Data
+    if data_inicio_str:
+        data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+        query = query.filter(Compra.data_compra >= data_inicio)
+    if data_fim_str:
+        data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
+        # Adiciona 1 dia para incluir a data final no filtro
+        query = query.filter(Compra.data_compra < (data_fim + timedelta(days=1)))
+
+    # Lógica de Ordenação
+    allowed_sort_columns = {
+        'data_compra': Compra.data_compra,
+        'fornecedor': Fornecedor.nome,
+        'valor_total': Compra.valor_total,
+        'data_vencimento': Compra.data_vencimento
+    }
+    
+    if sort_by not in allowed_sort_columns:
+        sort_by = 'data_compra'
+
+    sort_column = allowed_sort_columns[sort_by]
+
+    # Para ordenar por fornecedor, precisamos de um JOIN
+    if sort_by == 'fornecedor':
+        query = query.join(Fornecedor)
+
+    if order == 'asc':
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+
+    # Paginação
+    pagination = query.paginate(page=page, per_page=50, error_out=False)
+    lista_compras = pagination.items
+
+    return render_template(
+        'compras.html',
+        compras=lista_compras,
+        pagination=pagination,
+        data_inicio=data_inicio_str,
+        data_fim=data_fim_str,
+        sort_by=sort_by,
+        order=order
+    )
+
+
+
+
+@bp.route('/compra/nova', methods=['GET', 'POST'])
+def nova_compra():
+    if request.method == 'POST':
+        # --- Processar o formulário ---
+        try:
+            # 1. Pegar dados do cabeçalho de forma segura
+            nota_fiscal = request.form.get('nota_fiscal', '') # '' como valor padrão
+            data_vencimento_str = request.form.get('data_vencimento')
+            fornecedor_id_str = request.form.get('fornecedor_id')
+            conta_id_str = request.form.get('conta_id')
+
+            # Validação básica para campos obrigatórios
+            if not data_vencimento_str or not fornecedor_id_str or not conta_id_str:
+                flash('Campos obrigatórios (vencimento, fornecedor, conta) não foram preenchidos.', 'danger')
+                return redirect(url_for('main.nova_compra'))
+
+            data_compra = datetime.now(ZoneInfo("America/Sao_Paulo"))
+            data_vencimento = datetime.strptime(data_vencimento_str, '%Y-%m-%d').date()
+            fornecedor_id = int(fornecedor_id_str)
+            conta_id = int(conta_id_str)
+
+            nova_compra_obj = Compra(
+                nota_fiscal=nota_fiscal,
+                data_compra=data_compra,
+                data_vencimento=data_vencimento,
+                fornecedor_id=fornecedor_id
+            )
+            db.session.add(nova_compra_obj)
+            
+            # 2. Processar os itens da compra
+            total_compra = 0
+            itens_form = request.form.getlist('produto_id')
+            quantidades_form = request.form.getlist('quantidade')
+            custos_form = request.form.getlist('custo')
+
+            for i in range(len(itens_form)):
+                produto_id = int(itens_form[i])
+                quantidade = int(quantidades_form[i])
+                custo = float(custos_form[i])
+                
+                # Cria o item da compra
+                novo_item = CompraItem(
+                    compra=nova_compra_obj,
+                    produto_id=produto_id,
+                    quantidade=quantidade,
+                    custo_unitario=custo
+                )
+                db.session.add(novo_item)
+                
+                # Atualiza estoque e custo do produto
+                produto = Produto.query.get(produto_id)
+                produto.quantidade += quantidade
+                produto.custo = custo # Atualiza para o custo mais recente
+                
+                total_compra += quantidade * custo
+
+            # 3. Atualiza o valor total na compra
+            nova_compra_obj.valor_total = total_compra
+            
+            # 4. Gera o lançamento no contas a pagar
+            novo_lancamento = Lancamento(
+                descricao=f"Compra NF: {nota_fiscal}",
+                valor=total_compra,
+                tipo='PAGAR',
+                data_lancamento=data_compra,
+                data_vencimento=data_vencimento,
+                conta_id=conta_id
+            )
+            db.session.add(novo_lancamento)
+            db.session.flush() # Força o ID do lançamento a ser gerado
+
+            # 5. Vincula o lançamento à compra
+            nova_compra_obj.lancamento_id = novo_lancamento.id
+            
+            db.session.commit()
+            flash('Compra lançada com sucesso e conta a pagar gerada!', 'success')
+            return redirect(url_for('main.compras'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao processar a compra: {e}', 'danger')
+            return redirect(url_for('main.nova_compra'))
+
+    # --- Exibir o formulário (GET) ---
+    fornecedores = Fornecedor.query.order_by(Fornecedor.nome).all()
+    produtos = Produto.query.order_by(Produto.nome).all()
+    todas_as_contas = Conta.query.join(GrupoConta).order_by(GrupoConta.nome, Conta.nome).all()
+    
+    return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, contas=todas_as_contas)

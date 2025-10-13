@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Cadastro de Fornecedores</h2>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST">
+                <div class="input-group">
+                    <input type="text" name="nome_fornecedor" class="form-control" placeholder="Nome do Novo Fornecedor" required>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <h3>Fornecedores Cadastrados</h3>
+    <ul class="list-group">
+        {% for f in fornecedores %}
+        <li class="list-group-item">{{ f.nome }}</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Lançar Nova Compra</h2>
+    <form method="POST">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="fornecedor_id" class="form-label">Fornecedor</label>
+                        <select name="fornecedor_id" id="fornecedor_id" class="form-select" required>
+                            <option selected disabled>Selecione...</option>
+                            {% for f in fornecedores %}<option value="{{ f.id }}">{{ f.nome }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="nota_fiscal" class="form-label">Nº Nota Fiscal</label>
+                        <input type="text" name="nota_fiscal" id="nota_fiscal" class="form-control">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="data_vencimento" class="form-label">Data de Vencimento (Pagamento)</label>
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control" required>
+                    </div>
+                    <div class="col-md-12">
+                        <label for="conta_id" class="form-label">Conta (para Contas a Pagar)</label>
+                        <select name="conta_id" id="conta_id" class="form-select" required>
+                             <option selected disabled>Selecione a conta de despesa...</option>
+                             {% for c in contas %}<option value="{{ c.id }}">{{ c.grupo.nome }} / {{ c.nome }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                Itens da Compra
+                <button type="button" id="add-item-btn" class="btn btn-success btn-sm">Adicionar Produto</button>
+            </div>
+            <div class="card-body">
+                <p>Caso o produto não esteja na lista, <a href="{{ url_for('main.produtos') }}" target="_blank">cadastre-o aqui</a> antes de continuar.</p>
+                <table class="table">
+                    <thead><tr><th>Produto</th><th>Quantidade</th><th>Custo Unit. (R$)</th><th>Ação</th></tr></thead>
+                    <tbody id="itens-tbody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3">Finalizar Lançamento da Compra</button>
+    </form>
+
+    <template id="item-template">
+        <tr>
+            <td>
+                <select name="produto_id" class="form-select" required>
+                    <option selected disabled>Selecione...</option>
+                    {% for p in produtos %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                </select>
+            </td>
+            <td><input type="number" name="quantidade" class="form-control" required></td>
+            <td><input type="number" step="0.01" name="custo" class="form-control" required></td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">Remover</button></td>
+        </tr>
+    </template>
+
+<script>
+document.getElementById('add-item-btn').addEventListener('click', () => {
+    const template = document.getElementById('item-template');
+    const tbody = document.getElementById('itens-tbody');
+    const clone = template.content.cloneNode(true);
+    tbody.appendChild(clone);
+});
+</script>
+{% endblock %}

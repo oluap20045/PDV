@@ -60,3 +60,34 @@ class Lancamento(db.Model):
 
     def __repr__(self):
         return f'<Lancamento {self.descricao}>'
+
+
+class Fornecedor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(150), nullable=False, unique=True)
+    compras = db.relationship('Compra', backref='fornecedor', lazy=True)
+
+    def __repr__(self):
+        return f'<Fornecedor {self.nome}>'
+
+class Compra(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nota_fiscal = db.Column(db.String(50), nullable=True)
+    data_compra = db.Column(db.DateTime, nullable=False)
+    data_vencimento = db.Column(db.Date, nullable=False)
+    valor_total = db.Column(db.Float, nullable=False, default=0.0)
+    
+    fornecedor_id = db.Column(db.Integer, db.ForeignKey('fornecedor.id'), nullable=False)
+    lancamento_id = db.Column(db.Integer, db.ForeignKey('lancamento.id'), nullable=True) # Link com o contas a pagar
+    
+    itens = db.relationship('CompraItem', backref='compra', lazy=True, cascade="all, delete-orphan")
+
+class CompraItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    quantidade = db.Column(db.Integer, nullable=False)
+    custo_unitario = db.Column(db.Float, nullable=False)
+    
+    compra_id = db.Column(db.Integer, db.ForeignKey('compra.id'), nullable=False)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
+    
+    produto = db.relationship('Produto')
