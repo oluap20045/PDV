@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Editar cliente: {{ cliente.nome }}</h2>
+    <form method="POST">
+        {% with v = form or cliente %}{% include '_cliente_form.html' %}{% endwith %}
+        <div class="mt-3">
+            <a href="{{ url_for('main.clientes') }}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Salvar alterações</button>
+        </div>
+    </form>
+{% endblock %}

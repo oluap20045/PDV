@@ -5,6 +5,15 @@
     
     <form method="POST">
         <div class="mb-3">
+            <label for="codigo_barras" class="form-label">Código de barras</label>
+            <div class="input-group">
+                <input type="text" name="codigo_barras" id="codigo_barras" class="form-control"
+                       value="{{ produto.codigo_barras or '' }}" inputmode="numeric" autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary"
+                        onclick="PdvScanner.abrir({onLeitura: c => { document.getElementById('codigo_barras').value = c; }})">📷 Câmera</button>
+            </div>
+        </div>
+        <div class="mb-3">
             <label for="nome" class="form-label">Nome do Produto</label>
             <input type="text" name="nome" id="nome" class="form-control" value="{{ produto.nome }}" required>
         </div>
@@ -16,10 +25,6 @@
             <div class="col-md-4 mb-3">
                 <label for="custo" class="form-label">Custo (R$)</label>
                 <input type="number" step="0.01" name="custo" id="custo" class="form-control" value="{{ produto.custo }}" required>
-            </div>
-            <div class="col-md-4 mb-3">
-                <label for="quantidade" class="form-label">Quantidade em Estoque</label>
-                <input type="number" name="quantidade" id="quantidade" class="form-control" value="{{ produto.quantidade }}" required>
             </div>
             <div class="col-md-4 mb-3">
                 <label for="quantidade" class="form-label">Quantidade em Estoque</label>

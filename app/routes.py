@@ -7,9 +7,16 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from app import db
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
-from app.models import Compra, CompraItem
+from app.models import Compra, CompraItem, Cliente
+import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
+
+
+def _codigo_barras_do_form():
+    """Código de barras do formulário; vazio vira None (o campo é único, vários vazios não podem colidir)."""
+    codigo = (request.form.get('codigo_barras') or '').strip()
+    return codigo or None
 
 @bp.route('/')
 def index():
@@ -30,8 +37,14 @@ def produtos():
         custo = float(request.form['custo'])
         quantidade = int(request.form['quantidade'])
         estoque_minimo = int(request.form['estoque_minimo'])
-        
-        novo_produto = Produto(nome=nome, preco=preco, custo=custo, quantidade=quantidade)
+        codigo_barras = _codigo_barras_do_form()
+
+        if codigo_barras and Produto.query.filter_by(codigo_barras=codigo_barras).first():
+            flash(f'O código de barras {codigo_barras} já está cadastrado em outro produto.', 'danger')
+            return redirect(url_for('main.produtos'))
+
+        novo_produto = Produto(nome=nome, preco=preco, custo=custo, quantidade=quantidade,
+                               estoque_minimo=estoque_minimo, codigo_barras=codigo_barras)
         db.session.add(novo_produto)
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -196,6 +209,12 @@ def editar_produto(id):
         produto.custo = float(request.form['custo'])
         produto.quantidade = int(request.form['quantidade'])
         produto.estoque_minimo = int(request.form['estoque_minimo'])
+        codigo_barras = _codigo_barras_do_form()
+        if codigo_barras and Produto.query.filter(Produto.codigo_barras == codigo_barras,
+                                                  Produto.id != produto.id).first():
+            flash(f'O código de barras {codigo_barras} já está cadastrado em outro produto.', 'danger')
+            return redirect(url_for('main.editar_produto', id=produto.id))
+        produto.codigo_barras = codigo_barras
         db.session.commit()
         flash('Produto atualizado com sucesso!', 'success')
         return redirect(url_for('main.produtos'))
@@ -494,3 +513,104 @@ def nova_compra():
     todas_as_contas = Conta.query.join(GrupoConta).order_by(GrupoConta.nome, Conta.nome).all()
     
     return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, contas=todas_as_contas)
+
+
+# ---------------------------------------------------------------- Clientes
+
+def _so_digitos(valor):
+    return re.sub(r'\D', '', valor or '')
+
+
+def cpf_valido(cpf):
+    """Confere os dois dígitos verificadores do CPF (só dígitos)."""
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+    for tam in (9, 10):
+        soma = sum(int(cpf[i]) * (tam + 1 - i) for i in range(tam))
+        dv = (soma * 10) % 11 % 10
+        if dv != int(cpf[tam]):
+            return False
+    return True
+
+
+def _cliente_do_form():
+    """Lê e valida o formulário. Devolve (dados, erro)."""
+    dados = {
+        'nome': request.form.get('nome', '').strip(),
+        'telefone': _so_digitos(request.form.get('telefone')) or None,
+        'whatsapp': _so_digitos(request.form.get('whatsapp')) or None,
+        'email': (request.form.get('email') or '').strip().lower() or None,
+        'cpf': _so_digitos(request.form.get('cpf')) or None,
+    }
+    if not dados['nome']:
+        return dados, 'Informe o nome do cliente.'
+    if dados['cpf'] and not cpf_valido(dados['cpf']):
+        return dados, 'CPF inválido — confira os números.'
+    if dados['email'] and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', dados['email']):
+        return dados, 'E-mail inválido.'
+    return dados, None
+
+
+@bp.app_template_filter('telefone')
+def formatar_telefone(valor):
+    d = _so_digitos(valor)
+    if len(d) == 11:
+        return f'({d[:2]}) {d[2:7]}-{d[7:]}'
+    if len(d) == 10:
+        return f'({d[:2]}) {d[2:6]}-{d[6:]}'
+    return valor or ''
+
+
+@bp.app_template_filter('cpf')
+def formatar_cpf(valor):
+    d = _so_digitos(valor)
+    return f'{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}' if len(d) == 11 else (valor or '')
+
+
+@bp.route('/clientes', methods=['GET', 'POST'])
+def clientes():
+    if request.method == 'POST':
+        dados, erro = _cliente_do_form()
+        if not erro and dados['cpf'] and Cliente.query.filter_by(cpf=dados['cpf']).first():
+            erro = 'Já existe um cliente com esse CPF.'
+        if erro:
+            flash(erro, 'danger')
+            return render_template('clientes.html', clientes=_listar_clientes(), form=dados)
+        db.session.add(Cliente(**dados))
+        db.session.commit()
+        flash(f'Cliente {dados["nome"]} cadastrado!', 'success')
+        return redirect(url_for('main.clientes'))
+
+    return render_template('clientes.html', clientes=_listar_clientes(), form={})
+
+
+def _listar_clientes():
+    busca = request.args.get('busca', '').strip()
+    query = Cliente.query
+    if busca:
+        digitos = _so_digitos(busca)
+        filtros = [Cliente.nome.ilike(f'%{busca}%'), Cliente.email.ilike(f'%{busca}%')]
+        if digitos:
+            filtros += [Cliente.cpf.contains(digitos), Cliente.telefone.contains(digitos),
+                        Cliente.whatsapp.contains(digitos)]
+        query = query.filter(db.or_(*filtros))
+    return query.order_by(Cliente.nome).all()
+
+
+@bp.route('/cliente/edit/<int:id>', methods=['GET', 'POST'])
+def editar_cliente(id):
+    cliente = Cliente.query.get_or_404(id)
+    if request.method == 'POST':
+        dados, erro = _cliente_do_form()
+        if not erro and dados['cpf'] and Cliente.query.filter(Cliente.cpf == dados['cpf'],
+                                                              Cliente.id != cliente.id).first():
+            erro = 'Já existe outro cliente com esse CPF.'
+        if erro:
+            flash(erro, 'danger')
+            return render_template('edit_cliente.html', cliente=cliente, form=dados)
+        for campo, valor in dados.items():
+            setattr(cliente, campo, valor)
+        db.session.commit()
+        flash('Cliente atualizado!', 'success')
+        return redirect(url_for('main.clientes'))
+    return render_template('edit_cliente.html', cliente=cliente, form=None)

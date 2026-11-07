@@ -1,0 +1,45 @@
+{# Campos do cliente. Espera `v` = dict com os valores (vazio no cadastro novo). #}
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+        <label for="nome" class="form-label">Nome *</label>
+        <input type="text" name="nome" id="nome" class="form-control" value="{{ v.nome or '' }}" required autocomplete="off">
+    </div>
+    <div class="col-12 col-md-6">
+        <label for="cpf" class="form-label">CPF</label>
+        <input type="text" name="cpf" id="cpf" class="form-control" data-mascara="cpf" inputmode="numeric"
+               placeholder="000.000.000-00" value="{{ v.cpf|cpf }}">
+    </div>
+    <div class="col-12 col-md-4">
+        <label for="telefone" class="form-label">Telefone</label>
+        <input type="tel" name="telefone" id="telefone" class="form-control" data-mascara="telefone"
+               placeholder="(00) 00000-0000" value="{{ v.telefone|telefone }}">
+    </div>
+    <div class="col-12 col-md-4">
+        <label for="whatsapp" class="form-label">WhatsApp</label>
+        <div class="input-group">
+            <input type="tel" name="whatsapp" id="whatsapp" class="form-control" data-mascara="telefone"
+                   placeholder="(00) 00000-0000" value="{{ v.whatsapp|telefone }}">
+            <button type="button" class="btn btn-outline-success" title="Mesmo número do telefone"
+                    onclick="document.getElementById('whatsapp').value = document.getElementById('telefone').value">= Tel.</button>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <label for="email" class="form-label">E-mail</label>
+        <input type="email" name="email" id="email" class="form-control" placeholder="nome@exemplo.com" value="{{ v.email or '' }}">
+    </div>
+</div>
+<script>
+// Máscaras simples (o servidor guarda só os dígitos)
+document.querySelectorAll('[data-mascara]').forEach((el) => {
+    el.addEventListener('input', () => {
+        const d = el.value.replace(/\D/g, '').slice(0, 11);
+        if (el.dataset.mascara === 'cpf') {
+            el.value = d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        } else {
+            el.value = d.length > 10
+                ? d.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3')
+                : d.replace(/(\d{2})(\d{0,4})(\d{0,4})/, (m, a, b, c) => `(${a}` + (b ? `) ${b}` : '') + (c ? `-${c}` : ''));
+        }
+    });
+});
+</script>

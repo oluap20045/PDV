@@ -1,16 +1,30 @@
 {% extends 'base.html' %}
 
+{% block conteudo_class %}{% endblock %}
+
 {% block content %}
-    <h2>PDV - Ponto de Venda</h2>
-    <div class="row">
-        <div class="col-md-5">
-            <h4>Adicionar Produto</h4>
+    <h2 class="pdv-titulo mb-4"><span aria-hidden="true">🌿</span> Ponto de Venda <small>Doce natureza</small></h2>
+    <div class="row g-4">
+        <div class="col-12 col-md-5">
+          <div class="painel mb-4">
+            <h4>Bipar produto</h4>
+            <div class="input-group mb-1">
+                <input type="text" id="codigo-input" class="form-control form-control-lg" placeholder="Código de barras"
+                       inputmode="numeric" autocomplete="off" autofocus>
+                <button type="button" id="camera-btn" class="btn btn-dark btn-lg" title="Bipar com a câmera">📷</button>
+            </div>
+            <div id="codigo-status" class="small text-secondary">Leitor USB ou câmera: cada leitura soma 1 no carrinho.</div>
+          </div>
+
+          <div class="painel">
+            <h4>Ou escolha na lista</h4>
             <div class="mb-3">
                 <label for="produto-select" class="form-label">Produto</label>
                 <select id="produto-select" class="form-select">
                     <option selected disabled>Selecione um produto...</option>
                     {% for p in produtos %}
-                    <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-preco="{{ p.preco }}">
+                    <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-preco="{{ p.preco }}"
+                            data-estoque="{{ p.quantidade }}" data-codigo="{{ p.codigo_barras or '' }}">
                         {{ p.nome }} (R$ {{ "%.2f"|format(p.preco) }})
                     </option>
                     {% endfor %}
@@ -21,65 +35,131 @@
                 <input type="number" id="quantidade-input" class="form-control" value="1" min="1">
             </div>
             <button id="add-to-cart-btn" class="btn btn-primary">Adicionar ao Carrinho</button>
+          </div>
         </div>
 
-        <div class="col-md-7">
+        <div class="col-12 col-md-7">
+          <div class="painel">
             <h4>Carrinho</h4>
             <form id="venda-form" method="POST">
-                <table class="table">
-                    <thead><tr><th>Produto</th><th>Qtd</th><th>Preço Unit.</th><th>Subtotal</th><th>Ação</th></tr></thead>
+                <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Produto</th><th>Qtd</th><th>Preço Unit.</th><th>Subtotal</th><th></th></tr></thead>
                     <tbody id="carrinho-body"></tbody>
                 </table>
-                <hr>
-                <h3 class="text-end">Total: <span id="total-venda">R$ 0.00</span></h3>
-                <button type="submit" class="btn btn-success float-end mt-3">Finalizar Venda</button>
+                </div>
+                <div id="carrinho-vazio" class="carrinho-vazio">
+                    <span class="folha" aria-hidden="true">🍃</span>
+                    Carrinho vazio — bipe um produto para começar.
+                </div>
+                <div class="total-caixa">
+                    <div>
+                        <div class="rotulo">Total</div>
+                        <div class="valor" id="total-venda">R$ 0,00</div>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-lg">Finalizar venda</button>
+                </div>
             </form>
+          </div>
         </div>
     </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const produtoSelect = document.getElementById('produto-select');
     const quantidadeInput = document.getElementById('quantidade-input');
-    const addToCartBtn = document.getElementById('add-to-cart-btn');
     const carrinhoBody = document.getElementById('carrinho-body');
     const totalVendaSpan = document.getElementById('total-venda');
-    const vendaForm = document.getElementById('venda-form');
-    let total = 0;
+    const codigoInput = document.getElementById('codigo-input');
+    const codigoStatus = document.getElementById('codigo-status');
 
-    addToCartBtn.addEventListener('click', () => {
-        const selectedOption = produtoSelect.options[produtoSelect.selectedIndex];
-        if (selectedOption.disabled) return;
+    // catálogo vindo do servidor (só produtos com estoque)
+    const produtos = {};
+    const porCodigo = {};
+    for (const opt of produtoSelect.options) {
+        if (opt.disabled) continue;
+        const p = { id: opt.value, nome: opt.dataset.nome, preco: parseFloat(opt.dataset.preco),
+                    estoque: parseInt(opt.dataset.estoque) };
+        produtos[p.id] = p;
+        if (opt.dataset.codigo) porCodigo[opt.dataset.codigo] = p;
+    }
 
-        const produtoId = selectedOption.value;
-        const produtoNome = selectedOption.dataset.nome;
-        const produtoPreco = parseFloat(selectedOption.dataset.preco);
-        const quantidade = parseInt(quantidadeInput.value);
-        const subtotal = produtoPreco * quantidade;
+    const carrinho = {};   // id -> quantidade
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const vazio = document.getElementById('carrinho-vazio');
 
-        const newRow = document.createElement('tr');
-        newRow.innerHTML = `
-            <td>${produtoNome} <input type="hidden" name="carrinho[]" value="${produtoId}|${quantidade}"></td>
-            <td>${quantidade}</td>
-            <td>R$ ${produtoPreco.toFixed(2)}</td>
-            <td>R$ ${subtotal.toFixed(2)}</td>
-            <td><button type="button" class="btn btn-danger btn-sm" onclick="removerItem(this, ${subtotal})">Remover</button></td>
-        `;
-        carrinhoBody.appendChild(newRow);
-        
-        total += subtotal;
-        totalVendaSpan.innerText = `R$ ${total.toFixed(2)}`;
+    function render() {
+        carrinhoBody.innerHTML = '';
+        let total = 0;
+        for (const [id, qtd] of Object.entries(carrinho)) {
+            const p = produtos[id];
+            const subtotal = p.preco * qtd;
+            total += subtotal;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td></td>
+                <td>${qtd}</td>
+                <td>${brl(p.preco)}</td>
+                <td>${brl(subtotal)}</td>
+                <td class="text-nowrap">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-acao="menos">−</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-acao="remover">✕</button>
+                    <input type="hidden" name="carrinho[]" value="${id}|${qtd}">
+                </td>`;
+            tr.cells[0].textContent = p.nome;   // textContent: nome nunca vira HTML
+            tr.querySelector('[data-acao=menos]').onclick = () => { carrinho[id]--; if (carrinho[id] <= 0) delete carrinho[id]; render(); };
+            tr.querySelector('[data-acao=remover]').onclick = () => { delete carrinho[id]; render(); };
+            carrinhoBody.appendChild(tr);
+        }
+        totalVendaSpan.innerText = brl(total);
+        vazio.style.display = Object.keys(carrinho).length ? 'none' : '';
+    }
+
+    // devolve mensagem (usada também no status do leitor de câmera)
+    function adicionar(p, qtd) {
+        const atual = carrinho[p.id] || 0;
+        if (atual + qtd > p.estoque) {
+            return `Estoque insuficiente: ${p.nome} tem só ${p.estoque}.`;
+        }
+        carrinho[p.id] = atual + qtd;
+        render();
+        return `+${qtd} ${p.nome} (no carrinho: ${carrinho[p.id]})`;
+    }
+
+    function porCodigoDeBarras(codigo) {
+        codigo = codigo.trim();
+        if (!codigo) return null;
+        const p = porCodigo[codigo];
+        const msg = p ? adicionar(p, 1) : `Código ${codigo} não cadastrado (ou sem estoque).`;
+        const ok = p && msg.startsWith('+');
+        codigoStatus.className = `small mb-4 text-${ok ? 'success' : 'danger'}`;
+        codigoStatus.textContent = msg;
+        return msg;
+    }
+
+    codigoInput.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const msg = porCodigoDeBarras(codigoInput.value);
+        if (msg && msg.startsWith('+')) PdvScanner.bipe();
+        codigoInput.value = '';
+    });
+
+    document.getElementById('camera-btn').addEventListener('click', () => {
+        PdvScanner.abrir({ continuo: true, onLeitura: (c) => {
+            const texto = porCodigoDeBarras(c);
+            return { texto, ok: texto.startsWith('+') };
+        } });
+    });
+
+    document.getElementById('add-to-cart-btn').addEventListener('click', () => {
+        const opt = produtoSelect.options[produtoSelect.selectedIndex];
+        if (opt.disabled) return;
+        const msg = adicionar(produtos[opt.value], Math.max(1, parseInt(quantidadeInput.value) || 1));
+        if (!msg.startsWith('+')) alert(msg);
     });
 });
-
-function removerItem(button, subtotal) {
-    const row = button.closest('tr');
-    row.remove();
-    
-    let totalSpan = document.getElementById('total-venda');
-    let currentTotal = parseFloat(totalSpan.innerText.replace('R$ ', ''));
-    let newTotal = currentTotal - subtotal;
-    totalSpan.innerText = `R$ ${newTotal.toFixed(2)}`;
-}
 </script>
 {% endblock %}

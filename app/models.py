@@ -10,6 +10,7 @@ class Produto(db.Model):
     custo = db.Column(db.Float, nullable=False, default=0.0)
     quantidade = db.Column(db.Integer, nullable=False, default=0)
     estoque_minimo = db.Column(db.Integer, nullable=False, default=0)
+    codigo_barras = db.Column(db.String(50), unique=True, nullable=True, index=True)
 
     def __repr__(self):
         return f'<Produto {self.nome}>'
@@ -91,3 +92,16 @@ class CompraItem(db.Model):
     produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
     
     produto = db.relationship('Produto')
+
+
+class Cliente(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(150), nullable=False)
+    telefone = db.Column(db.String(20))
+    whatsapp = db.Column(db.String(20))
+    email = db.Column(db.String(150))
+    cpf = db.Column(db.String(11), unique=True, index=True)   # só dígitos
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    def __repr__(self):
+        return f'<Cliente {self.nome}>'

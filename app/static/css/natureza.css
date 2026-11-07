@@ -1,0 +1,119 @@
+/* Tema "folha" — só na tela do PDV (body.tema-natureza) */
+.tema-natureza {
+    --folha-50:  #f3f9ee;
+    --folha-100: #e6f2dc;
+    --folha-200: #cfe6bd;
+    --folha-400: #8fc46e;
+    --folha-600: #4f8a35;
+    --folha-700: #3d6e29;
+    --folha-800: #2c5020;
+    --musgo:     #263b1d;
+    --casca:     #6b4f35;
+
+    color: var(--musgo);
+    min-height: 100vh;
+    background-color: var(--folha-100);
+    /* nervuras de folha (SVG) por cima de um degradê suave, como luz filtrada pelas folhas */
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%234f8a35' stroke-opacity='0.07' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M20 200 Q110 110 200 20'/%3E%3Cpath d='M55 165 Q50 120 70 95 M55 165 Q100 160 125 140'/%3E%3Cpath d='M95 125 Q92 85 112 60 M95 125 Q135 122 160 102'/%3E%3Cpath d='M135 85 Q135 55 150 38 M135 85 Q165 84 185 70'/%3E%3C/g%3E%3C/svg%3E"),
+        radial-gradient(ellipse at 15% 0%, #f7fcf2 0%, transparent 55%),
+        radial-gradient(ellipse at 100% 100%, var(--folha-200) 0%, transparent 60%),
+        linear-gradient(160deg, var(--folha-50) 0%, var(--folha-100) 55%, #dcedd0 100%);
+    background-attachment: fixed;
+}
+
+.tema-natureza .navbar { background: var(--folha-800) !important; }
+
+.tema-natureza .pdv-titulo {
+    display: flex; align-items: center; gap: .6rem;
+    font-weight: 700; color: var(--folha-800); letter-spacing: -.01em;
+}
+.tema-natureza .pdv-titulo small { font-weight: 400; font-size: .95rem; color: var(--folha-600); }
+
+.tema-natureza .painel {
+    background: rgba(255, 255, 255, .78);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(79, 138, 53, .18);
+    border-radius: 1.25rem;
+    box-shadow: 0 8px 24px -12px rgba(44, 80, 32, .35);
+    padding: 1.25rem;
+}
+.tema-natureza .painel h4 {
+    font-size: 1.05rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--folha-700); margin-bottom: .9rem;
+}
+
+/* campo de bipar: grande e convidativo */
+.tema-natureza #codigo-input {
+    border: 2px solid var(--folha-400); border-right: 0;
+    border-radius: 999px 0 0 999px; padding-left: 1.25rem;
+    background: #fff;
+}
+.tema-natureza #codigo-input:focus { box-shadow: 0 0 0 .25rem rgba(143, 196, 110, .35); border-color: var(--folha-600); }
+.tema-natureza #camera-btn {
+    border-radius: 0 999px 999px 0; padding: 0 1.4rem;
+    background: var(--folha-600); border-color: var(--folha-600); color: #fff;
+}
+.tema-natureza #camera-btn:hover { background: var(--folha-700); }
+
+.tema-natureza .form-control, .tema-natureza .form-select { border-color: var(--folha-200); }
+.tema-natureza .form-control:focus, .tema-natureza .form-select:focus {
+    border-color: var(--folha-400); box-shadow: 0 0 0 .2rem rgba(143, 196, 110, .3);
+}
+
+.tema-natureza .btn-primary { background: var(--folha-600); border-color: var(--folha-600); border-radius: 999px; padding-inline: 1.25rem; }
+.tema-natureza .btn-primary:hover { background: var(--folha-700); border-color: var(--folha-700); }
+.tema-natureza .btn-success {
+    background: var(--folha-800); border-color: var(--folha-800); border-radius: 999px;
+    padding: .8rem 2rem; font-weight: 700; letter-spacing: .02em;
+}
+.tema-natureza .btn-success:hover { background: var(--musgo); border-color: var(--musgo); }
+
+/* carrinho */
+.tema-natureza .table { --bs-table-bg: transparent; color: var(--musgo); }
+.tema-natureza .table thead th {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--folha-700); border-bottom-color: var(--folha-200);
+}
+.tema-natureza .table td { border-bottom-color: var(--folha-100); }
+.tema-natureza #carrinho-body tr { animation: brotar .35s ease-out; }
+@keyframes brotar { from { opacity: 0; transform: translateY(-4px); background: var(--folha-100); } }
+
+.tema-natureza .carrinho-vazio { text-align: center; color: var(--folha-600); padding: 2rem 0 1rem; }
+.tema-natureza .carrinho-vazio .folha { font-size: 2.4rem; display: block; opacity: .7; }
+
+.tema-natureza .total-caixa {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+    background: linear-gradient(135deg, var(--folha-100), var(--folha-50));
+    border: 1px dashed var(--folha-400); border-radius: 1rem; padding: 1rem 1.25rem; margin-top: 1rem;
+}
+.tema-natureza .total-caixa .rotulo { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--folha-700); }
+.tema-natureza .total-caixa .valor { font-size: 2.2rem; font-weight: 800; color: var(--folha-800); font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+.tema-natureza .alert { border-radius: 1rem; }
+.tema-natureza .alert-success { background: #e3f3d6; border-color: var(--folha-400); color: var(--folha-800); }
+
+@media (max-width: 767px) {
+    .tema-natureza .total-caixa .valor { font-size: 1.8rem; }
+    .tema-natureza .total-caixa .btn-success { width: 100%; }
+}
+
+/* ---- demais abas ---- */
+.tema-natureza h2 { font-weight: 700; color: var(--folha-800); letter-spacing: -.01em; margin-bottom: 1.1rem; }
+.tema-natureza h3 { font-size: 1.15rem; font-weight: 700; color: var(--folha-700); margin-top: .5rem; }
+.tema-natureza .card {
+    background: rgba(255, 255, 255, .6); border: 1px solid var(--folha-200); border-radius: 1rem;
+}
+.tema-natureza .table-striped > tbody > tr:nth-of-type(odd) > * { --bs-table-accent-bg: rgba(143, 196, 110, .10); }
+.tema-natureza .table-hover > tbody > tr:hover > * { --bs-table-accent-bg: rgba(143, 196, 110, .18); }
+.tema-natureza .table-warning, .tema-natureza .table-warning > * { --bs-table-bg: #fbefc6; }
+.tema-natureza .list-group-item { background: transparent; border-color: var(--folha-200); }
+.tema-natureza .btn-secondary { border-radius: 999px; }
+.tema-natureza .btn-outline-secondary { border-color: var(--folha-400); color: var(--folha-700); }
+.tema-natureza .btn-outline-secondary:hover { background: var(--folha-100); color: var(--folha-800); }
+.tema-natureza .btn-warning { background: #f1d98a; border-color: #e6c766; color: var(--casca); }
+.tema-natureza .page-link { color: var(--folha-700); }
+.tema-natureza .page-item.active .page-link { background: var(--folha-600); border-color: var(--folha-600); color: #fff; }
+.tema-natureza .navbar .nav-link.active, .tema-natureza .navbar .nav-link:hover { color: #d9f0c6; }
+.tema-natureza .modal-content { border-radius: 1.25rem; border-color: var(--folha-200); }
