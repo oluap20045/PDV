@@ -1,38 +1,15 @@
 # Base = produção (é o que roda no dbserver).
-# Em dev local o docker-compose.override.yml é aplicado automaticamente.
+# O banco é o MariaDB que já existe no servidor (capivara_mysql, 127.0.0.1:3337),
+# por isso o app roda em network_mode host. DATABASE_URL vem do .env do servidor.
+# Em dev local o docker-compose.override.yml é aplicado automaticamente e sobe um MariaDB próprio.
 services:
   web:
     build: .
     container_name: pdv_web
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:${PDV_PORT:-5050}:5000"   # só localhost; acesso externo via Caddy
+    network_mode: host
+    command: ["gunicorn", "--bind", "127.0.0.1:${PDV_PORT:-5050}", "--workers", "2", "--timeout", "60", "run:app"]
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-inseguro-troque-em-producao}
-      DATABASE_URL: mysql+mysqlconnector://${DB_USER:-pdv}:${DB_PASSWORD:-pdvpass}@db/pdv_db
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL no .env}
       TZ: America/Sao_Paulo
-    depends_on:
-      db:
-        condition: service_healthy
-
-  db:
-    image: mariadb:11.4
-    container_name: pdv_db
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-pdvroot}
-      MARIADB_DATABASE: pdv_db
-      MARIADB_USER: ${DB_USER:-pdv}
-      MARIADB_PASSWORD: ${DB_PASSWORD:-pdvpass}
-      TZ: America/Sao_Paulo
-    command: --innodb-buffer-pool-size=128M --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - pdv_db_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-volumes:
-  pdv_db_data:

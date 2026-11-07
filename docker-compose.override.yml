@@ -1,11 +1,36 @@
 # Só pra desenvolvimento local (o deploy do dbserver NÃO usa este arquivo).
+# Uso: docker compose up -d --build  →  http://localhost:5000
 services:
   web:
+    network_mode: bridge
     command: ["flask", "run", "--host=0.0.0.0", "--debug"]
-    ports: !override
+    ports:
       - "5000:5000"
+    environment:
+      SECRET_KEY: dev
+      DATABASE_URL: mysql+mysqlconnector://pdv:pdvpass@db/pdv_db
     volumes:
       - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: pdvroot
+      MARIADB_DATABASE: pdv_db
+      MARIADB_USER: pdv
+      MARIADB_PASSWORD: pdvpass
     ports:
       - "3307:3306"
+    volumes:
+      - pdv_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pdv_db_data:
