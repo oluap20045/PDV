@@ -1,34 +1,38 @@
-version: '3.8'
-
+# Base = produção (é o que roda no dbserver).
+# Em dev local o docker-compose.override.yml é aplicado automaticamente.
 services:
-  # Serviço da aplicação web (Python/Flask)
   web:
     build: .
     container_name: pdv_web
+    restart: unless-stopped
     ports:
-      - "5000:5000"
-    volumes:
-      - .:/app  # Mapeia o código local para dentro do container para desenvolvimento
+      - "127.0.0.1:${PDV_PORT:-5050}:5000"   # só localhost; acesso externo via Caddy
     environment:
-      - FLASK_APP=run.py
-      - FLASK_ENV=development
-      - DATABASE_URL=mysql+mysqlconnector://user:password@db/pdv_db
+      SECRET_KEY: ${SECRET_KEY:-dev-inseguro-troque-em-producao}
+      DATABASE_URL: mysql+mysqlconnector://${DB_USER:-pdv}:${DB_PASSWORD:-pdvpass}@db/pdv_db
+      TZ: America/Sao_Paulo
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-  # Serviço do banco de dados (MySQL)
   db:
-    image: mysql:8.0
+    image: mariadb:11.4
     container_name: pdv_db
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: pdv_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-pdvroot}
+      MARIADB_DATABASE: pdv_db
+      MARIADB_USER: ${DB_USER:-pdv}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-pdvpass}
+      TZ: America/Sao_Paulo
+    command: --innodb-buffer-pool-size=128M --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
-      - mysql_data:/var/lib/mysql
-    ports:
-      - "3307:3306" # Mapeia a porta do container para a 3307 na sua máquina local
+      - pdv_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  mysql_data:
+  pdv_db_data:

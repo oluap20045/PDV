@@ -1,18 +1,18 @@
-# Use uma imagem base oficial do Python
-FROM python:3.9-slim
+FROM python:3.12-slim
 
-# Defina o diretório de trabalho dentro do container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=run.py \
+    TZ=America/Sao_Paulo
+
 WORKDIR /app
 
-# Copie o arquivo de dependências e instale-as
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie o resto do código da aplicação para o diretório de trabalho
 COPY . .
 
-# Exponha a porta que a aplicação Flask irá rodar
 EXPOSE 5000
 
-# Comando para rodar a aplicação quando o container iniciar
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Produção: gunicorn (o docker-compose.override.yml troca pelo flask run em dev)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60", "run:app"]

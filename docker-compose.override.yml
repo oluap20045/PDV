@@ -1,0 +1,11 @@
+# Só pra desenvolvimento local (o deploy do dbserver NÃO usa este arquivo).
+services:
+  web:
+    command: ["flask", "run", "--host=0.0.0.0", "--debug"]
+    ports: !override
+      - "5000:5000"
+    volumes:
+      - .:/app
+  db:
+    ports:
+      - "3307:3306"

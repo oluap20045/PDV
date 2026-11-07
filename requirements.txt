@@ -1,4 +1,5 @@
-Flask
-Flask-SQLAlchemy
-Flask-Migrate
-mysql-connector-python
+Flask>=3.0,<4
+Flask-SQLAlchemy>=3.1,<4
+Flask-Migrate>=4.0,<5
+mysql-connector-python>=9.0,<10
+gunicorn>=23,<24
