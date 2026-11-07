@@ -101,9 +101,14 @@ def venda_pdv():
             # ALTERAÇÃO: adicione o prefixo do blueprint 'main.'
             return redirect(url_for('main.venda_pdv'))
 
+        cliente = db.session.get(Cliente, request.form.get('cliente_id', type=int) or 0)
+        if cliente is None:
+            flash('Selecione o cliente antes de finalizar a venda.', 'danger')
+            return redirect(url_for('main.venda_pdv'))
+
         total_venda = 0
         data_da_venda = datetime.now(ZoneInfo("America/Sao_Paulo"))
-        nova_venda = Venda(total=0, data=data_da_venda)
+        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id)
         db.session.add(nova_venda)
         db.session.flush()
 
@@ -133,7 +138,7 @@ def venda_pdv():
 
             nova_venda.total = total_venda
             db.session.commit()
-            flash(f'Venda de R$ {total_venda:.2f} finalizada com sucesso!', 'success')
+            flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada com sucesso!', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -143,7 +148,14 @@ def venda_pdv():
         return redirect(url_for('main.venda_pdv'))
 
     produtos_disponiveis = Produto.query.filter(Produto.quantidade > 0).all()
-    return render_template('venda.html', produtos=produtos_disponiveis)
+    padrao = Cliente.padrao_do_sistema()
+    clientes = Cliente.query.order_by(Cliente.padrao.desc(), Cliente.nome).all()
+    # ?cliente=<id> vem de "novo cliente" a partir do PDV; senão, o padrão
+    selecionado = request.args.get('cliente', type=int)
+    if not any(c.id == selecionado for c in clientes):
+        selecionado = padrao.id
+    return render_template('venda.html', produtos=produtos_disponiveis,
+                           clientes=clientes, cliente_selecionado=selecionado)
 
 
 @bp.route('/vendas')
@@ -228,12 +240,21 @@ def gerenciar_contas():
     if request.method == 'POST':
         # Verifica se está criando um grupo ou uma conta
         if 'nome_grupo' in request.form:
-            novo_grupo = GrupoConta(nome=request.form['nome_grupo'])
-            db.session.add(novo_grupo)
+            nome = request.form['nome_grupo'].strip()
+            if GrupoConta.query.filter_by(nome=nome).first():
+                flash(f'Já existe o grupo "{nome}".', 'warning')
+                return redirect(url_for('main.gerenciar_contas'))
+            db.session.add(GrupoConta(nome=nome))
             flash('Grupo de conta criado com sucesso!', 'success')
         elif 'nome_conta' in request.form:
-            nova_conta = Conta(nome=request.form['nome_conta'], grupo_id=request.form['grupo_id'])
-            db.session.add(nova_conta)
+            nome = request.form['nome_conta'].strip()
+            if Conta.query.filter_by(nome=nome).first():
+                flash(f'Já existe a conta "{nome}".', 'warning')
+                return redirect(url_for('main.gerenciar_contas'))
+            if not request.form.get('grupo_id', type=int):
+                flash('Escolha o grupo da conta.', 'warning')
+                return redirect(url_for('main.gerenciar_contas'))
+            db.session.add(Conta(nome=nome, grupo_id=request.form.get('grupo_id', type=int)))
             flash('Conta criada com sucesso!', 'success')
         
         db.session.commit()
@@ -575,10 +596,14 @@ def clientes():
             erro = 'Já existe um cliente com esse CPF.'
         if erro:
             flash(erro, 'danger')
-            return render_template('clientes.html', clientes=_listar_clientes(), form=dados)
-        db.session.add(Cliente(**dados))
+            return render_template('clientes.html', clientes=_listar_clientes(),
+                                   form=dict(dados, voltar=request.form.get('voltar')))
+        novo = Cliente(**dados)
+        db.session.add(novo)
         db.session.commit()
         flash(f'Cliente {dados["nome"]} cadastrado!', 'success')
+        if request.form.get('voltar') == 'venda':   # veio do PDV: volta com ele selecionado
+            return redirect(url_for('main.venda_pdv', cliente=novo.id))
         return redirect(url_for('main.clientes'))
 
     return render_template('clientes.html', clientes=_listar_clientes(), form={})

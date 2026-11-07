@@ -3,6 +3,8 @@
 from app import db
 from datetime import datetime
 
+NOME_CLIENTE_PADRAO = 'Consumidor final'
+
 class Produto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False, unique=True)
@@ -19,6 +21,7 @@ class Venda(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data = db.Column(db.DateTime, nullable=False)
     total = db.Column(db.Float, nullable=False)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False, index=True)
     itens = db.relationship('ItemVenda', backref='venda', lazy=True)
 
 class ItemVenda(db.Model):
@@ -102,6 +105,17 @@ class Cliente(db.Model):
     email = db.Column(db.String(150))
     cpf = db.Column(db.String(11), unique=True, index=True)   # só dígitos
     criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    padrao = db.Column(db.Boolean, nullable=False, default=False)   # "Consumidor final", pré-selecionado no PDV
+    vendas = db.relationship('Venda', backref='cliente', lazy=True)
+
+    @classmethod
+    def padrao_do_sistema(cls):
+        cliente = cls.query.filter_by(padrao=True).first()
+        if cliente is None:   # garantia: se alguém apagar direto no banco, recria
+            cliente = cls(nome=NOME_CLIENTE_PADRAO, padrao=True)
+            db.session.add(cliente)
+            db.session.commit()
+        return cliente
 
     def __repr__(self):
         return f'<Cliente {self.nome}>'

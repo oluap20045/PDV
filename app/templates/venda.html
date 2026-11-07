@@ -6,8 +6,25 @@
     <h2 class="pdv-titulo mb-4"><span aria-hidden="true">🌿</span> Ponto de Venda <small>Doce natureza</small></h2>
     <div class="row g-4">
         <div class="col-12 col-md-5">
+          <div class="painel mb-4 painel-cliente">
+            <h4><span class="passo">1</span> Cliente</h4>
+            <input type="search" id="cliente-busca" class="form-control form-control-sm mb-2"
+                   placeholder="Buscar cliente por nome ou CPF..." autocomplete="off">
+            <div class="input-group">
+                <select id="cliente-select" name="cliente_id" form="venda-form" class="form-select" required>
+                    {% for c in clientes %}
+                    <option value="{{ c.id }}" data-busca="{{ (c.nome ~ ' ' ~ (c.cpf or ''))|lower }}"
+                            {% if c.id == cliente_selecionado %}selected{% endif %}>
+                        {{ c.nome }}{% if c.cpf %} — {{ c.cpf|cpf }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <a href="{{ url_for('main.clientes', voltar='venda') }}" class="btn btn-outline-secondary" title="Cadastrar novo cliente">+ Novo</a>
+            </div>
+          </div>
+
           <div class="painel mb-4">
-            <h4>Bipar produto</h4>
+            <h4><span class="passo">2</span> Bipar produto</h4>
             <div class="input-group mb-1">
                 <input type="text" id="codigo-input" class="form-control form-control-lg" placeholder="Código de barras"
                        inputmode="numeric" autocomplete="off" autofocus>
@@ -40,7 +57,8 @@
 
         <div class="col-12 col-md-7">
           <div class="painel">
-            <h4>Carrinho</h4>
+            <h4><span class="passo">3</span> Carrinho</h4>
+            <div class="venda-para mb-2">Venda para <strong id="cliente-nome"></strong></div>
             <form id="venda-form" method="POST">
                 <div class="table-responsive">
                 <table class="table align-middle">
@@ -146,6 +164,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (msg && msg.startsWith('+')) PdvScanner.bipe();
         codigoInput.value = '';
     });
+
+    // cliente: padrão já vem selecionado; a busca filtra a lista e seleciona o 1º que bater
+    const clienteSelect = document.getElementById('cliente-select');
+    const clienteNome = document.getElementById('cliente-nome');
+    const mostrarCliente = () => {
+        const opt = clienteSelect.options[clienteSelect.selectedIndex];
+        clienteNome.textContent = opt ? opt.text.split(' — ')[0].trim() : '—';
+    };
+    clienteSelect.addEventListener('change', mostrarCliente);
+    document.getElementById('cliente-busca').addEventListener('input', (ev) => {
+        const termo = ev.target.value.toLowerCase().replace(/[.\-]/g, '');
+        let primeiro = null;
+        for (const opt of clienteSelect.options) {
+            const bate = !termo || opt.dataset.busca.replace(/[.\-]/g, '').includes(termo);
+            opt.hidden = !bate;
+            if (bate && !primeiro) primeiro = opt;
+        }
+        if (primeiro && clienteSelect.selectedOptions[0].hidden) { primeiro.selected = true; mostrarCliente(); }
+    });
+    mostrarCliente();
 
     document.getElementById('camera-btn').addEventListener('click', () => {
         PdvScanner.abrir({ continuo: true, onLeitura: (c) => {

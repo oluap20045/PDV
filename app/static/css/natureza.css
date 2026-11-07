@@ -117,3 +117,12 @@
 .tema-natureza .page-item.active .page-link { background: var(--folha-600); border-color: var(--folha-600); color: #fff; }
 .tema-natureza .navbar .nav-link.active, .tema-natureza .navbar .nav-link:hover { color: #d9f0c6; }
 .tema-natureza .modal-content { border-radius: 1.25rem; border-color: var(--folha-200); }
+
+/* PDV: passos 1-2-3 e cliente da venda */
+.tema-natureza .passo {
+    display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; margin-right: .35rem;
+    border-radius: 50%; background: var(--folha-600); color: #fff; font-size: .85rem; letter-spacing: 0;
+}
+.tema-natureza .painel-cliente { border-left: 5px solid var(--folha-600); }
+.tema-natureza .venda-para { color: var(--folha-700); }
+.tema-natureza .venda-para strong { color: var(--folha-800); }

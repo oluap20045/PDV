@@ -4,8 +4,14 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="POST">
+                {% set voltar = request.args.get('voltar') or form.get('voltar') %}
+                {% if voltar == 'venda' %}
+                <input type="hidden" name="voltar" value="venda">
+                <div class="alert alert-success py-2">Depois de cadastrar você volta pro PDV com este cliente já selecionado.</div>
+                {% endif %}
                 {% with v = form %}{% include '_cliente_form.html' %}{% endwith %}
                 <button type="submit" class="btn btn-primary mt-3">Cadastrar cliente</button>
+                {% if voltar == 'venda' %}<a href="{{ url_for('main.venda_pdv') }}" class="btn btn-secondary mt-3">Voltar ao PDV</a>{% endif %}
             </form>
         </div>
     </div>
@@ -25,7 +31,7 @@
         <tbody>
         {% for c in clientes %}
             <tr>
-                <td>{{ c.nome }}</td>
+                <td>{{ c.nome }}{% if c.padrao %} <span class="badge bg-success">padrão</span>{% endif %}</td>
                 <td class="text-nowrap">{{ c.cpf|cpf or '—' }}</td>
                 <td class="text-nowrap">{% if c.telefone %}<a href="tel:+55{{ c.telefone }}">{{ c.telefone|telefone }}</a>{% else %}—{% endif %}</td>
                 <td class="text-nowrap">{% if c.whatsapp %}<a href="https://wa.me/55{{ c.whatsapp }}" target="_blank" rel="noopener" class="link-success">{{ c.whatsapp|telefone }}</a>{% else %}—{% endif %}</td>
