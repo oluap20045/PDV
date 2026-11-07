@@ -8,9 +8,24 @@ from app import db
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
 from app.models import Compra, CompraItem, Cliente
+from app.models import NOME_CONTA_VENDAS, FORMAS_PAGAMENTO, FORMA_A_PRAZO
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
+
+
+def _conta_de_vendas():
+    """Conta usada nos recebimentos de venda; recria se alguém tiver apagado."""
+    conta = Conta.query.filter_by(nome=NOME_CONTA_VENDAS).first()
+    if conta is None:
+        grupo = GrupoConta.query.filter_by(nome='1. Receitas Operacionais').first()
+        if grupo is None:
+            grupo = GrupoConta(nome='1. Receitas Operacionais')
+            db.session.add(grupo)
+        conta = Conta(nome=NOME_CONTA_VENDAS, grupo=grupo)
+        db.session.add(conta)
+        db.session.flush()
+    return conta
 
 
 def _codigo_barras_do_form():
@@ -106,9 +121,20 @@ def venda_pdv():
             flash('Selecione o cliente antes de finalizar a venda.', 'danger')
             return redirect(url_for('main.venda_pdv'))
 
-        total_venda = 0
+        forma = request.form.get('forma_pagamento')
+        if forma not in FORMAS_PAGAMENTO:
+            flash('Escolha a forma de pagamento.', 'danger')
+            return redirect(url_for('main.venda_pdv', cliente=cliente.id))
         data_da_venda = datetime.now(ZoneInfo("America/Sao_Paulo"))
-        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id)
+        vencimento = data_da_venda.date()
+        if forma == FORMA_A_PRAZO:
+            try:
+                vencimento = datetime.strptime(request.form.get('data_vencimento', ''), '%Y-%m-%d').date()
+            except ValueError:
+                vencimento = data_da_venda.date() + timedelta(days=30)
+
+        total_venda = 0
+        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id, forma_pagamento=forma)
         db.session.add(nova_venda)
         db.session.flush()
 
@@ -137,8 +163,24 @@ def venda_pdv():
                     raise Exception(f'Estoque insuficiente para o produto {produto.nome}')
 
             nova_venda.total = total_venda
+
+            # financeiro: toda venda vira um "a receber"; à vista já nasce quitado, fiado fica em aberto
+            a_prazo = forma == FORMA_A_PRAZO
+            nova_venda.lancamento = Lancamento(
+                descricao=f'Venda #{nova_venda.id} - {cliente.nome} ({forma})'[:200],
+                valor=total_venda,
+                tipo='RECEBER',
+                data_lancamento=data_da_venda,
+                data_vencimento=vencimento,
+                data_pagamento=None if a_prazo else data_da_venda,
+                conta_id=_conta_de_vendas().id,
+            )
             db.session.commit()
-            flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada com sucesso!', 'success')
+            if a_prazo:
+                flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada no fiado — '
+                      f'a receber em {vencimento.strftime("%d/%m/%Y")} (ver Financeiro).', 'success')
+            else:
+                flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada ({forma}) e lançada no financeiro.', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -155,7 +197,10 @@ def venda_pdv():
     if not any(c.id == selecionado for c in clientes):
         selecionado = padrao.id
     return render_template('venda.html', produtos=produtos_disponiveis,
-                           clientes=clientes, cliente_selecionado=selecionado)
+                           clientes=clientes, cliente_selecionado=selecionado,
+                           formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
+                           vencimento_padrao=(datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+                                              + timedelta(days=30)).isoformat())
 
 
 @bp.route('/vendas')
@@ -269,8 +314,23 @@ def gerenciar_contas():
 def lancamentos():
     # Lógica de POST (criação de novo lançamento) continua a mesma
     if request.method == 'POST':
-        # ... (código para adicionar novo lançamento, sem alterações aqui) ...
-        # ...
+        descricao = request.form.get('descricao', '').strip()
+        tipo = request.form.get('tipo')
+        conta_id = request.form.get('conta_id', type=int)
+        try:
+            valor = float(request.form.get('valor', ''))
+            vencimento = datetime.strptime(request.form.get('data_vencimento', ''), '%Y-%m-%d').date()
+        except ValueError:
+            valor = vencimento = None
+        if not descricao or tipo not in ('PAGAR', 'RECEBER') or not conta_id or not db.session.get(Conta, conta_id) \
+                or valor is None or valor <= 0 or vencimento is None:
+            flash('Preencha descrição, valor, vencimento, conta e tipo.', 'danger')
+            return redirect(url_for('main.lancamentos'))
+        db.session.add(Lancamento(
+            descricao=descricao, valor=valor, tipo=tipo, conta_id=conta_id,
+            data_lancamento=datetime.now(ZoneInfo("America/Sao_Paulo")), data_vencimento=vencimento,
+        ))
+        db.session.commit()
         flash(f'Lançamento "{descricao}" criado com sucesso!', 'success')
         return redirect(url_for('main.lancamentos'))
 

@@ -47,7 +47,12 @@
 
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between">
-                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }}</span>
+                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }} · {{ venda.forma_pagamento }}
+                    {% if venda.lancamento %}
+                        {% if venda.lancamento.data_pagamento %}<span class="badge bg-success">recebido</span>
+                        {% else %}<span class="badge bg-warning text-dark">a receber até {{ venda.lancamento.data_vencimento.strftime('%d/%m') }}</span>{% endif %}
+                    {% endif %}
+                </span>
                 <span>Data: {{ venda.data.strftime('%d/%m/%Y %H:%M') }}</span>
             </div>
             <div class="card-body">

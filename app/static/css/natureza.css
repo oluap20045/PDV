@@ -126,3 +126,15 @@
 .tema-natureza .painel-cliente { border-left: 5px solid var(--folha-600); }
 .tema-natureza .venda-para { color: var(--folha-700); }
 .tema-natureza .venda-para strong { color: var(--folha-800); }
+
+/* PDV: forma de pagamento */
+.tema-natureza .rotulo-pag { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--folha-700); }
+.tema-natureza .btn-pag {
+    border: 1.5px solid var(--folha-400); color: var(--folha-800); background: #fff;
+    border-radius: 999px; padding: .35rem .9rem; font-size: .92rem;
+}
+.tema-natureza .btn-check:checked + .btn-pag { background: var(--folha-600); border-color: var(--folha-600); color: #fff; }
+.tema-natureza .btn-check:focus-visible + .btn-pag { box-shadow: 0 0 0 .2rem rgba(143, 196, 110, .4); }
+.tema-natureza .fiado-box {
+    background: #fbf3dc; border: 1px dashed #d9b866; border-radius: .8rem; padding: .6rem .8rem; color: var(--casca);
+}

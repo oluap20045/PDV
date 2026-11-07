@@ -4,6 +4,9 @@ from app import db
 from datetime import datetime
 
 NOME_CLIENTE_PADRAO = 'Consumidor final'
+NOME_CONTA_VENDAS = 'Venda de Produtos'
+FORMAS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Fiado']
+FORMA_A_PRAZO = 'Fiado'   # única que gera lançamento em aberto
 
 class Produto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -22,6 +25,9 @@ class Venda(db.Model):
     data = db.Column(db.DateTime, nullable=False)
     total = db.Column(db.Float, nullable=False)
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False, index=True)
+    forma_pagamento = db.Column(db.String(20), nullable=False, default='Dinheiro')
+    lancamento_id = db.Column(db.Integer, db.ForeignKey('lancamento.id'), nullable=True)  # contas a receber
+    lancamento = db.relationship('Lancamento', backref=db.backref('venda', uselist=False))
     itens = db.relationship('ItemVenda', backref='venda', lazy=True)
 
 class ItemVenda(db.Model):

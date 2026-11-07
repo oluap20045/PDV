@@ -70,6 +70,22 @@
                     <span class="folha" aria-hidden="true">🍃</span>
                     Carrinho vazio — bipe um produto para começar.
                 </div>
+                <div class="pagamento mt-3">
+                    <div class="rotulo-pag mb-2">Forma de pagamento</div>
+                    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Forma de pagamento">
+                        {% for f in formas_pagamento %}
+                        <input type="radio" class="btn-check" name="forma_pagamento" id="pag-{{ loop.index }}"
+                               value="{{ f }}" autocomplete="off" {% if loop.first %}checked{% endif %}>
+                        <label class="btn btn-pag" for="pag-{{ loop.index }}">{{ f }}</label>
+                        {% endfor %}
+                    </div>
+                    <div id="fiado-box" class="fiado-box mt-2" hidden>
+                        <label for="data_vencimento" class="form-label small mb-1">Cliente paga até</label>
+                        <input type="date" name="data_vencimento" id="data_vencimento" class="form-control form-control-sm"
+                               value="{{ vencimento_padrao }}" style="max-width: 12rem">
+                        <div class="small mt-1">Fica em aberto no Financeiro até você marcar como recebido.</div>
+                    </div>
+                </div>
                 <div class="total-caixa">
                     <div>
                         <div class="rotulo">Total</div>
@@ -184,6 +200,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (primeiro && clienteSelect.selectedOptions[0].hidden) { primeiro.selected = true; mostrarCliente(); }
     });
     mostrarCliente();
+
+    // fiado: mostra a data de vencimento; fiado no "Consumidor final" não faz sentido, avisa
+    const fiadoBox = document.getElementById('fiado-box');
+    const formaAPrazo = {{ forma_a_prazo|tojson }};
+    const formaSel = () => document.querySelector('input[name=forma_pagamento]:checked').value;
+    document.querySelectorAll('input[name=forma_pagamento]').forEach((r) =>
+        r.addEventListener('change', () => { fiadoBox.hidden = formaSel() !== formaAPrazo; }));
+    document.getElementById('venda-form').addEventListener('submit', (ev) => {
+        if (!Object.keys(carrinho).length) { ev.preventDefault(); alert('Carrinho vazio.'); return; }
+        const padrao = clienteSelect.selectedIndex === 0 && clienteSelect.options[0].text.includes('Consumidor final');
+        if (formaSel() === formaAPrazo && padrao) {
+            ev.preventDefault();
+            alert('Venda no fiado precisa de um cliente identificado — escolha ou cadastre o cliente no passo 1.');
+        }
+    });
 
     document.getElementById('camera-btn').addEventListener('click', () => {
         PdvScanner.abrir({ continuo: true, onLeitura: (c) => {
