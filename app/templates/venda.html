@@ -71,21 +71,49 @@
                     Carrinho vazio — bipe um produto para começar.
                 </div>
                 <div class="pagamento mt-3">
-                    <div class="rotulo-pag mb-2">Forma de pagamento</div>
-                    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Forma de pagamento">
-                        {% for f in formas_pagamento %}
-                        <input type="radio" class="btn-check" name="forma_pagamento" id="pag-{{ loop.index }}"
-                               value="{{ f }}" autocomplete="off" {% if loop.first %}checked{% endif %}>
-                        <label class="btn btn-pag" for="pag-{{ loop.index }}">{{ f }}</label>
-                        {% endfor %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="rotulo-pag">Pagamento</div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="pag-add">+ Outra forma</button>
                     </div>
+                    <div id="pag-linhas"></div>
+                    <div id="pag-resumo" class="small mt-1"></div>
                     <div id="fiado-box" class="fiado-box mt-2" hidden>
-                        <label for="data_vencimento" class="form-label small mb-1">Cliente paga até</label>
+                        <label for="data_vencimento" class="form-label small mb-1">Cliente paga o fiado até</label>
                         <input type="date" name="data_vencimento" id="data_vencimento" class="form-control form-control-sm"
                                value="{{ vencimento_padrao }}" style="max-width: 12rem">
                         <div class="small mt-1">Fica em aberto no Financeiro até você marcar como recebido.</div>
                     </div>
                 </div>
+                <template id="pag-tpl">
+                    <div class="pag-linha">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-sm-4">
+                                <select name="pag_forma[]" class="form-select form-select-sm pag-forma" aria-label="Forma">
+                                    {% for f in formas_pagamento %}<option>{{ f }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6 col-sm-3 pag-bandeira-box">
+                                <select name="pag_bandeira[]" class="form-select form-select-sm pag-bandeira" aria-label="Bandeira">
+                                    <option value="">Bandeira...</option>
+                                    {% for b in bandeiras %}<option>{{ b }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6 col-sm-2 pag-parcelas-box">
+                                <select name="pag_parcelas[]" class="form-select form-select-sm pag-parcelas" aria-label="Parcelas">
+                                    {% for n in range(1, max_parcelas + 1) %}<option value="{{ n }}">{{ 'à vista' if n == 1 else n ~ 'x' }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col pag-valor-box">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="text" name="pag_valor[]" class="form-control pag-valor" inputmode="decimal" aria-label="Valor">
+                                    <button type="button" class="btn btn-outline-danger pag-remover" title="Remover">✕</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="small pag-taxa"></div>
+                    </div>
+                </template>
                 <div class="total-caixa">
                     <div>
                         <div class="rotulo">Total</div>
@@ -148,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             carrinhoBody.appendChild(tr);
         }
         totalVendaSpan.innerText = brl(total);
+        atualizarPagamentos(Math.round(total * 100) / 100);
         vazio.style.display = Object.keys(carrinho).length ? 'none' : '';
     }
 
@@ -201,19 +230,97 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     mostrarCliente();
 
-    // fiado: mostra a data de vencimento; fiado no "Consumidor final" não faz sentido, avisa
+    // ---------- pagamento (uma ou várias formas)
+    const TAXAS = {{ taxas|tojson }};
+    const FORMAS_CARTAO = {{ formas_cartao|tojson }};
+    const CREDITO = {{ forma_credito|tojson }};
+    const FIADO = {{ forma_a_prazo|tojson }};
+    const pagLinhas = document.getElementById('pag-linhas');
+    const pagResumo = document.getElementById('pag-resumo');
     const fiadoBox = document.getElementById('fiado-box');
-    const formaAPrazo = {{ forma_a_prazo|tojson }};
-    const formaSel = () => document.querySelector('input[name=forma_pagamento]:checked').value;
-    document.querySelectorAll('input[name=forma_pagamento]').forEach((r) =>
-        r.addEventListener('change', () => { fiadoBox.hidden = formaSel() !== formaAPrazo; }));
+    // "10,50" / "1.234,56" / "10.50" -> número
+    const num = (t) => { t = String(t).trim(); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+                         const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+    const fmt = (v) => v.toFixed(2).replace('.', ',');
+    let totalAtual = 0;
+
+    function taxaDe(forma, bandeira, parcelas) {
+        const cand = TAXAS.filter((t) => t.forma === forma && t.de <= parcelas && t.ate >= parcelas);
+        return cand.find((t) => bandeira && t.bandeira === bandeira) || cand.find((t) => t.bandeira === null) || null;
+    }
+
+    function novaLinha(valor) {
+        const el = document.getElementById('pag-tpl').content.firstElementChild.cloneNode(true);
+        el.dataset.auto = '1';   // valor acompanha o total até o usuário digitar
+        el.querySelector('.pag-valor').value = fmt(valor);
+        el.querySelector('.pag-valor').addEventListener('input', () => { el.dataset.auto = ''; recalcular(); });
+        el.querySelectorAll('select').forEach((s) => s.addEventListener('change', recalcular));
+        el.querySelector('.pag-remover').addEventListener('click', () => { el.remove(); recalcular(true); });
+        pagLinhas.appendChild(el);
+        recalcular();
+        return el;
+    }
+
+    function recalcular(redistribuir = false) {
+        const linhas = [...pagLinhas.children];
+        // a última linha "automática" fica com o que falta
+        const auto = linhas.filter((l) => l.dataset.auto);
+        if (redistribuir && linhas.length && !auto.length) linhas[linhas.length - 1].dataset.auto = '1';
+        const fixo = linhas.filter((l) => !l.dataset.auto).reduce((s, l) => s + num(l.querySelector('.pag-valor').value), 0);
+        const autos = linhas.filter((l) => l.dataset.auto);
+        autos.forEach((l, i) => { l.querySelector('.pag-valor').value = fmt(i === autos.length - 1 ? Math.max(totalAtual - fixo, 0) : 0); });
+
+        let soma = 0, taxaTotal = 0, temFiado = false;
+        linhas.forEach((l) => {
+            const forma = l.querySelector('.pag-forma').value;
+            const cartao = FORMAS_CARTAO.includes(forma);
+            l.querySelector('.pag-bandeira-box').hidden = !cartao;
+            l.querySelector('.pag-parcelas-box').hidden = forma !== CREDITO;
+            if (forma !== CREDITO) l.querySelector('.pag-parcelas').value = '1';
+            l.querySelector('.pag-remover').hidden = linhas.length === 1;
+            const valor = num(l.querySelector('.pag-valor').value);
+            soma += valor;
+            temFiado = temFiado || forma === FIADO;
+            const info = l.querySelector('.pag-taxa');
+            const bandeira = l.querySelector('.pag-bandeira').value;
+            const t = taxaDe(forma, cartao ? bandeira : null, parseInt(l.querySelector('.pag-parcelas').value));
+            if (cartao && !bandeira) { info.textContent = 'Escolha a bandeira'; info.className = 'small pag-taxa text-danger'; }
+            else if (t && t.pct > 0) {
+                const v = Math.round(valor * t.pct) / 100;
+                taxaTotal += v;
+                info.textContent = `Taxa ${fmt(t.pct)}% ≈ ${brl(v)} (vai como despesa)`; info.className = 'small pag-taxa text-muted';
+            } else if (cartao) { info.textContent = 'Sem taxa cadastrada para esta combinação'; info.className = 'small pag-taxa text-warning'; }
+            else { info.textContent = ''; }
+        });
+        fiadoBox.hidden = !temFiado;
+        const falta = Math.round((totalAtual - soma) * 100) / 100;
+        pagResumo.className = 'small mt-1 ' + (Math.abs(falta) < 0.01 ? 'text-success' : 'text-danger');
+        pagResumo.textContent = Math.abs(falta) < 0.01
+            ? (taxaTotal > 0 ? `Pagamento fechado · taxas ≈ ${brl(taxaTotal)} · você recebe ≈ ${brl(totalAtual - taxaTotal)}` : (totalAtual ? 'Pagamento fechado' : ''))
+            : (falta > 0 ? `Falta ${brl(falta)}` : `Passou ${brl(-falta)} do total`);
+    }
+
+    function atualizarPagamentos(total) { totalAtual = total; recalcular(); }
+
+    document.getElementById('pag-add').addEventListener('click', () => {
+        const soma = [...pagLinhas.children].reduce((s, l) => s + num(l.querySelector('.pag-valor').value), 0);
+        pagLinhas.querySelectorAll('.pag-linha').forEach((l) => { l.dataset.auto = ''; });
+        novaLinha(Math.max(totalAtual - soma, 0)).querySelector('.pag-forma').focus();
+    });
+    novaLinha(0);
+
     document.getElementById('venda-form').addEventListener('submit', (ev) => {
-        if (!Object.keys(carrinho).length) { ev.preventDefault(); alert('Carrinho vazio.'); return; }
+        recalcular();
+        const erro = (m) => { ev.preventDefault(); alert(m); };
+        if (!Object.keys(carrinho).length) return erro('Carrinho vazio.');
+        const linhas = [...pagLinhas.children];
+        if (linhas.some((l) => FORMAS_CARTAO.includes(l.querySelector('.pag-forma').value) && !l.querySelector('.pag-bandeira').value))
+            return erro('Escolha a bandeira do cartão.');
+        const soma = linhas.reduce((s, l) => s + num(l.querySelector('.pag-valor').value), 0);
+        if (Math.abs(soma - totalAtual) > 0.009) return erro(`As formas de pagamento somam ${brl(soma)}, mas a venda é de ${brl(totalAtual)}.`);
         const padrao = clienteSelect.selectedIndex === 0 && clienteSelect.options[0].text.includes('Consumidor final');
-        if (formaSel() === formaAPrazo && padrao) {
-            ev.preventDefault();
-            alert('Venda no fiado precisa de um cliente identificado — escolha ou cadastre o cliente no passo 1.');
-        }
+        if (padrao && linhas.some((l) => l.querySelector('.pag-forma').value === FIADO))
+            return erro('Venda no fiado precisa de um cliente identificado — escolha ou cadastre o cliente no passo 1.');
     });
 
     document.getElementById('camera-btn').addEventListener('click', () => {

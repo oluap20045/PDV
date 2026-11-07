@@ -36,6 +36,7 @@
                 <div class="col-md-6">
                     <h4>Lucro Apurado</h4>
                     <h3 class="text-success">R$ {{ "%.2f"|format(lucro_total) }}</h3>
+                    {% if taxas_periodo %}<div class="small text-muted">já descontadas R$ {{ "%.2f"|format(taxas_periodo) }} de taxas de cartão</div>{% endif %}
                 </div>
             </div>
         </div>
@@ -47,12 +48,7 @@
 
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between">
-                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }} · {{ venda.forma_pagamento }}
-                    {% if venda.lancamento %}
-                        {% if venda.lancamento.data_pagamento %}<span class="badge bg-success">recebido</span>
-                        {% else %}<span class="badge bg-warning text-dark">a receber até {{ venda.lancamento.data_vencimento.strftime('%d/%m') }}</span>{% endif %}
-                    {% endif %}
-                </span>
+                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }}</span>
                 <span>Data: {{ venda.data.strftime('%d/%m/%Y %H:%M') }}</span>
             </div>
             <div class="card-body">
@@ -83,8 +79,23 @@
                 </table>
             </div>
             <div class="card-footer text-end">
+                <div class="mt-2 mb-2">
+                    {% for pg in venda.pagamentos %}
+                    <div class="small">
+                        💳 {{ pg.descricao }}: <strong>R$ {{ "%.2f"|format(pg.valor) }}</strong>
+                        {% if pg.taxa_valor %}<span class="text-muted">· taxa {{ ("%.2f"|format(pg.taxa_percentual)).replace('.', ',') }}% = R$ {{ "%.2f"|format(pg.taxa_valor) }}</span>{% endif %}
+                        {% if pg.lancamento %}
+                            {% if pg.lancamento.data_pagamento %}<span class="badge bg-success">recebido</span>
+                            {% else %}<span class="badge bg-warning text-dark">a receber até {{ pg.lancamento.data_vencimento.strftime('%d/%m') }}</span>{% endif %}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
                 <h5 class="mb-1">Total da Venda: R$ {{ "%.2f"|format(venda.total) }}</h5>
-                <h5 class="text-success">Lucro Total: R$ {{ "%.2f"|format(lucro_total_venda[0]) }}</h5>
+                {% if venda.taxa_total %}
+                <div class="text-muted">Lucro bruto: R$ {{ "%.2f"|format(lucro_total_venda[0]) }} · taxas de cartão: − R$ {{ "%.2f"|format(venda.taxa_total) }}</div>
+                {% endif %}
+                <h5 class="text-success">Lucro{% if venda.taxa_total %} líquido{% endif %}: R$ {{ "%.2f"|format(lucro_total_venda[0] - venda.taxa_total) }}</h5>
             </div>
         </div>
         {% endfor %}

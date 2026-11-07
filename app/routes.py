@@ -9,6 +9,8 @@ from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
 from app.models import Compra, CompraItem, Cliente
 from app.models import NOME_CONTA_VENDAS, FORMAS_PAGAMENTO, FORMA_A_PRAZO
+from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRAS, MAX_PARCELAS,
+                        TaxaPagamento, VendaPagamento)
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
@@ -26,6 +28,87 @@ def _conta_de_vendas():
         db.session.add(conta)
         db.session.flush()
     return conta
+
+
+def _conta_por_nome(nome, grupo_nome):
+    conta = Conta.query.filter_by(nome=nome).first()
+    if conta is None:
+        grupo = GrupoConta.query.filter_by(nome=grupo_nome).first()
+        if grupo is None:
+            grupo = GrupoConta(nome=grupo_nome)
+            db.session.add(grupo)
+        conta = Conta(nome=nome, grupo=grupo)
+        db.session.add(conta)
+        db.session.flush()
+    return conta
+
+
+def _pagamentos_do_form():
+    """Linhas de pagamento do PDV (listas alinhadas pag_forma[], pag_valor[], pag_bandeira[], pag_parcelas[])."""
+    formas = request.form.getlist('pag_forma[]')
+    valores = request.form.getlist('pag_valor[]')
+    bandeiras = request.form.getlist('pag_bandeira[]')
+    parcelas = request.form.getlist('pag_parcelas[]')
+    if not formas or not (len(formas) == len(valores) == len(bandeiras) == len(parcelas)):
+        raise ValueError('Informe a forma de pagamento.')
+    linhas = []
+    for forma, valor, bandeira, parc in zip(formas, valores, bandeiras, parcelas):
+        try:
+            valor = valor.strip()
+            if ',' in valor:
+                valor = valor.replace('.', '').replace(',', '.')
+            valor = round(float(valor), 2)
+        except ValueError:
+            raise ValueError('Valor de pagamento inválido.')
+        if valor <= 0:
+            continue   # linha vazia
+        if forma not in FORMAS_PAGAMENTO:
+            raise ValueError('Forma de pagamento inválida.')
+        bandeira = bandeira if forma in FORMAS_CARTAO else None
+        if forma in FORMAS_CARTAO and bandeira not in BANDEIRAS:
+            raise ValueError(f'Escolha a bandeira do {forma.lower()}.')
+        parc = int(parc) if forma == FORMA_CREDITO and parc.isdigit() else 1
+        if not 1 <= parc <= MAX_PARCELAS:
+            raise ValueError('Número de parcelas inválido.')
+        linhas.append({'forma': forma, 'valor': valor, 'bandeira': bandeira, 'parcelas': parc})
+    if not linhas:
+        raise ValueError('Informe a forma de pagamento.')
+    return linhas
+
+
+def _lancar_pagamentos(venda, cliente, linhas, quando, vencimento_fiado):
+    """Grava as formas de pagamento, o 'a receber' de cada uma e a despesa da taxa de cartão.
+    Devolve (taxa_total, valor_no_fiado)."""
+    conta_vendas = _conta_de_vendas()
+    conta_taxas = None
+    taxa_total = fiado = 0.0
+    resumo = []
+    for ln in linhas:
+        pag = VendaPagamento(venda=venda, **ln)
+        db.session.add(pag)
+        a_prazo = ln['forma'] == FORMA_A_PRAZO
+        pag.lancamento = Lancamento(
+            descricao=f'Venda #{venda.id} - {cliente.nome} ({pag.descricao})'[:200],
+            valor=ln['valor'], tipo='RECEBER', data_lancamento=quando,
+            data_vencimento=vencimento_fiado if a_prazo else quando.date(),
+            data_pagamento=None if a_prazo else quando, conta_id=conta_vendas.id)
+        if a_prazo:
+            fiado += ln['valor']
+
+        taxa = TaxaPagamento.buscar(ln['forma'], ln['bandeira'], ln['parcelas'])
+        if taxa and taxa.percentual > 0:
+            pag.taxa_percentual = taxa.percentual
+            pag.taxa_valor = round(ln['valor'] * taxa.percentual / 100, 2)
+            conta_taxas = conta_taxas or _conta_por_nome(NOME_CONTA_TAXAS, '6. Despesas Comerciais')
+            pag.lancamento_taxa = Lancamento(   # a maquininha já desconta: despesa nasce paga
+                descricao=f'Taxa {pag.descricao} {taxa.percentual:.2f}%'.replace('.', ',')[:180] + f' - Venda #{venda.id}',
+                valor=pag.taxa_valor, tipo='PAGAR', data_lancamento=quando, data_vencimento=quando.date(),
+                data_pagamento=quando, conta_id=conta_taxas.id)
+            taxa_total += pag.taxa_valor
+        resumo.append(pag.descricao if len(linhas) == 1 else f'{pag.descricao} R$ {ln["valor"]:.2f}')
+    venda.taxa_total = round(taxa_total, 2)
+    venda.forma_pagamento = ' + '.join(resumo)[:120]
+    return round(taxa_total, 2), round(fiado, 2)
 
 
 def _codigo_barras_do_form():
@@ -121,20 +204,23 @@ def venda_pdv():
             flash('Selecione o cliente antes de finalizar a venda.', 'danger')
             return redirect(url_for('main.venda_pdv'))
 
-        forma = request.form.get('forma_pagamento')
-        if forma not in FORMAS_PAGAMENTO:
-            flash('Escolha a forma de pagamento.', 'danger')
-            return redirect(url_for('main.venda_pdv', cliente=cliente.id))
         data_da_venda = datetime.now(ZoneInfo("America/Sao_Paulo"))
-        vencimento = data_da_venda.date()
-        if forma == FORMA_A_PRAZO:
-            try:
-                vencimento = datetime.strptime(request.form.get('data_vencimento', ''), '%Y-%m-%d').date()
-            except ValueError:
-                vencimento = data_da_venda.date() + timedelta(days=30)
+        try:
+            vencimento_fiado = datetime.strptime(request.form.get('data_vencimento', ''), '%Y-%m-%d').date()
+        except ValueError:
+            vencimento_fiado = data_da_venda.date() + timedelta(days=30)
+
+        try:
+            pagamentos = _pagamentos_do_form()
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('main.venda_pdv', cliente=cliente.id))
+        if any(p['forma'] == FORMA_A_PRAZO for p in pagamentos) and cliente.padrao:
+            flash('Venda no fiado precisa de um cliente identificado.', 'danger')
+            return redirect(url_for('main.venda_pdv'))
 
         total_venda = 0
-        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id, forma_pagamento=forma)
+        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id, forma_pagamento='')
         db.session.add(nova_venda)
         db.session.flush()
 
@@ -142,51 +228,40 @@ def venda_pdv():
             for item_str in itens_carrinho:
                 produto_id, quantidade_vendida = item_str.split('|')
                 quantidade_vendida = int(quantidade_vendida)
-                
-                produto = Produto.query.get(produto_id)
-                if produto.quantidade >= quantidade_vendida:
-                    produto.quantidade -= quantidade_vendida
-                    preco_item = produto.preco * quantidade_vendida
-                    total_venda += preco_item
-                    
-                    # ALTERAÇÃO INÍCIO: Adicionar 'custo_unitario'
-                    item_venda = ItemVenda(
-                        venda_id=nova_venda.id,
-                        produto_id=produto.id,
-                        quantidade=quantidade_vendida,
-                        preco_unitario=produto.preco,
-                        custo_unitario=produto.custo  # <- Salva o custo atual do produto
-                    )
-                    # ALTERAÇÃO FIM
-                    db.session.add(item_venda)
-                else:
+                produto = db.session.get(Produto, int(produto_id))
+                if produto is None:
+                    raise Exception('produto não encontrado')
+                if produto.quantidade < quantidade_vendida:
                     raise Exception(f'Estoque insuficiente para o produto {produto.nome}')
-
+                produto.quantidade -= quantidade_vendida
+                total_venda += produto.preco * quantidade_vendida
+                db.session.add(ItemVenda(
+                    venda_id=nova_venda.id, produto_id=produto.id, quantidade=quantidade_vendida,
+                    preco_unitario=produto.preco,
+                    custo_unitario=produto.custo,   # custo do momento da venda
+                ))
+            total_venda = round(total_venda, 2)
             nova_venda.total = total_venda
 
-            # financeiro: toda venda vira um "a receber"; à vista já nasce quitado, fiado fica em aberto
-            a_prazo = forma == FORMA_A_PRAZO
-            nova_venda.lancamento = Lancamento(
-                descricao=f'Venda #{nova_venda.id} - {cliente.nome} ({forma})'[:200],
-                valor=total_venda,
-                tipo='RECEBER',
-                data_lancamento=data_da_venda,
-                data_vencimento=vencimento,
-                data_pagamento=None if a_prazo else data_da_venda,
-                conta_id=_conta_de_vendas().id,
-            )
+            pago = round(sum(p['valor'] for p in pagamentos), 2)
+            if abs(pago - total_venda) > 0.009:
+                raise Exception(f'as formas de pagamento somam R$ {pago:.2f}, mas a venda é de R$ {total_venda:.2f}')
+
+            taxa_total, fiado_total = _lancar_pagamentos(nova_venda, cliente, pagamentos, data_da_venda, vencimento_fiado)
             db.session.commit()
-            if a_prazo:
-                flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada no fiado — '
-                      f'a receber em {vencimento.strftime("%d/%m/%Y")} (ver Financeiro).', 'success')
-            else:
-                flash(f'Venda de R$ {total_venda:.2f} para {cliente.nome} finalizada ({forma}) e lançada no financeiro.', 'success')
+
+            msg = f'Venda #{nova_venda.id} de R$ {total_venda:.2f} para {cliente.nome} finalizada ({nova_venda.forma_pagamento})'
+            if taxa_total:
+                msg += f' — taxa de cartão R$ {taxa_total:.2f} lançada como despesa'
+            if fiado_total:
+                msg += f' — R$ {fiado_total:.2f} no fiado, a receber em {vencimento_fiado.strftime("%d/%m/%Y")}'
+            flash(msg + '.', 'success')
 
         except Exception as e:
             db.session.rollback()
             flash(f'Erro ao processar a venda: {e}', 'danger')
+            return redirect(url_for('main.venda_pdv', cliente=cliente.id))
 
-        # ALTERAÇÃO: adicione o prefixo do blueprint 'main.'
         return redirect(url_for('main.venda_pdv'))
 
     produtos_disponiveis = Produto.query.filter(Produto.quantidade > 0).all()
@@ -199,6 +274,10 @@ def venda_pdv():
     return render_template('venda.html', produtos=produtos_disponiveis,
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
+                           formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,
+                           bandeiras=BANDEIRAS, max_parcelas=MAX_PARCELAS,
+                           taxas=[{'forma': t.forma, 'bandeira': t.bandeira, 'de': t.parcelas_de,
+                                   'ate': t.parcelas_ate, 'pct': t.percentual} for t in TaxaPagamento.query.all()],
                            vencimento_padrao=(datetime.now(ZoneInfo("America/Sao_Paulo")).date()
                                               + timedelta(days=30)).isoformat())
 
@@ -232,10 +311,11 @@ def vendas_realizadas():
     # Cálculo dos totais para TODO o período filtrado (antes da paginação)
     todas_as_vendas_do_periodo = query.all()
     total_vendido_periodo = sum(v.total for v in todas_as_vendas_do_periodo)
+    taxas_periodo = sum(v.taxa_total or 0 for v in todas_as_vendas_do_periodo)
     lucro_total_periodo = sum(
         (item.preco_unitario - item.custo_unitario) * item.quantidade
         for venda in todas_as_vendas_do_periodo for item in venda.itens
-    )
+    ) - taxas_periodo
 
     # ALTERAÇÃO INÍCIO: Aplicar paginação na query
     pagination = query.order_by(Venda.data.desc()).paginate(
@@ -250,6 +330,7 @@ def vendas_realizadas():
         pagination=pagination,    # Envia o objeto de paginação
         total_vendido=total_vendido_periodo,
         lucro_total=lucro_total_periodo,
+        taxas_periodo=taxas_periodo,
         data_inicio=data_inicio_str,
         data_fim=data_fim_str
     )
@@ -739,3 +820,99 @@ def nfce_confirmar():
     flash(f'Compra importada: {entraram} produto(s) entraram no estoque; '
           f'R$ {compra.valor_total:.2f} lançado no financeiro ({situacao}).', 'success')
     return redirect(url_for('main.compras'))
+
+
+# ---------------------------------------------------------------- Taxas de cartão
+
+def _taxa_do_form():
+    forma = request.form.get('forma')
+    modalidade = request.form.get('modalidade')     # debito | credito_vista | credito_parcelado | pix
+    bandeira = request.form.get('bandeira') or None
+    try:
+        pct = float((request.form.get('percentual') or '').replace(',', '.'))
+    except ValueError:
+        raise ValueError('Percentual inválido.')
+    if not 0 <= pct < 100:
+        raise ValueError('Percentual deve estar entre 0 e 100.')
+    if bandeira and bandeira not in BANDEIRAS:
+        raise ValueError('Bandeira inválida.')
+    de = ate = 1
+    if modalidade == 'debito':
+        forma = FORMAS_CARTAO[0]
+    elif modalidade == 'credito_vista':
+        forma = FORMA_CREDITO
+    elif modalidade == 'credito_parcelado':
+        forma = FORMA_CREDITO
+        de = request.form.get('parcelas_de', type=int) or 2
+        ate = request.form.get('parcelas_ate', type=int) or MAX_PARCELAS
+        if not 2 <= de <= ate <= MAX_PARCELAS:
+            raise ValueError(f'Faixa de parcelas inválida (de 2 até {MAX_PARCELAS}).')
+    elif modalidade == 'pix':
+        forma, bandeira = FORMAS_PAGAMENTO[0], None
+    else:
+        raise ValueError('Escolha a modalidade.')
+    return dict(forma=forma, bandeira=bandeira, parcelas_de=de, parcelas_ate=ate, percentual=pct)
+
+
+def _taxa_conflitante(dados, ignorar_id=None):
+    """Outra taxa da mesma forma/bandeira com faixa de parcelas que se sobrepõe."""
+    q = TaxaPagamento.query.filter(
+        TaxaPagamento.forma == dados['forma'],
+        (TaxaPagamento.bandeira == dados['bandeira']) if dados['bandeira'] else TaxaPagamento.bandeira.is_(None),
+        TaxaPagamento.parcelas_de <= dados['parcelas_ate'], TaxaPagamento.parcelas_ate >= dados['parcelas_de'])
+    if ignorar_id:
+        q = q.filter(TaxaPagamento.id != ignorar_id)
+    return q.first()
+
+
+@bp.route('/taxas', methods=['GET', 'POST'])
+def taxas():
+    if request.method == 'POST':
+        try:
+            dados = _taxa_do_form()
+            conflito = _taxa_conflitante(dados)
+            if conflito and (conflito.parcelas_de, conflito.parcelas_ate) != (dados['parcelas_de'], dados['parcelas_ate']):
+                raise ValueError(f'Já existe {conflito.bandeira or "Qualquer bandeira"} · {conflito.modalidade}, '
+                                 'que cobre parte dessas parcelas. Ajuste a faixa ou exclua a existente.')
+            if conflito:
+                conflito.percentual = dados['percentual']   # mesma combinação: atualiza em vez de duplicar
+                msg = f'Taxa atualizada: {conflito.bandeira or "Qualquer bandeira"} · {conflito.modalidade} = {dados["percentual"]:.2f}%'
+            else:
+                t = TaxaPagamento(**dados)
+                db.session.add(t)
+                msg = f'Taxa cadastrada: {t.bandeira or "Qualquer bandeira"} · {t.modalidade} = {t.percentual:.2f}%'
+            db.session.commit()
+            flash(msg.replace('.', ','), 'success')
+        except ValueError as e:
+            flash(str(e), 'danger')
+        return redirect(url_for('main.taxas'))
+
+    lista = TaxaPagamento.query.all()
+    ordem_forma = {f: i for i, f in enumerate(FORMAS_PAGAMENTO)}
+    lista.sort(key=lambda t: (t.bandeira is None, t.bandeira or '', ordem_forma.get(t.forma, 9), t.parcelas_de))
+    return render_template('taxas.html', taxas=lista, bandeiras=BANDEIRAS, max_parcelas=MAX_PARCELAS)
+
+
+@bp.route('/taxa/<int:id>/excluir', methods=['POST'])
+def excluir_taxa(id):
+    t = TaxaPagamento.query.get_or_404(id)
+    db.session.delete(t)
+    db.session.commit()
+    flash('Taxa excluída. Vendas já feitas mantêm a taxa da época.', 'info')
+    return redirect(url_for('main.taxas'))
+
+
+@bp.route('/taxa/<int:id>/editar', methods=['POST'])
+def editar_taxa(id):
+    t = TaxaPagamento.query.get_or_404(id)
+    try:
+        pct = float((request.form.get('percentual') or '').replace(',', '.'))
+        if not 0 <= pct < 100:
+            raise ValueError
+    except ValueError:
+        flash('Percentual inválido.', 'danger')
+        return redirect(url_for('main.taxas'))
+    t.percentual = pct
+    db.session.commit()
+    flash('Taxa atualizada.', 'success')
+    return redirect(url_for('main.taxas'))

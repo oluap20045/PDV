@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Taxas de Cartão</h2>
+    <p class="text-muted">Cadastre quanto a maquininha cobra. Na venda, a taxa é calculada sozinha e lançada como despesa
+        (conta <em>Taxas de Cartão/Maquininha</em>). Se uma bandeira não tiver taxa própria, vale a de <strong>Qualquer bandeira</strong>.</p>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST" class="row g-3 align-items-end" id="taxa-form">
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="modalidade">Modalidade</label>
+                    <select name="modalidade" id="modalidade" class="form-select" required>
+                        <option value="debito">Débito</option>
+                        <option value="credito_vista">Crédito à vista (1x)</option>
+                        <option value="credito_parcelado">Crédito parcelado</option>
+                        <option value="pix">Pix (na maquininha)</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-3" id="bandeira-box">
+                    <label class="form-label" for="bandeira">Bandeira</label>
+                    <select name="bandeira" id="bandeira" class="form-select">
+                        <option value="">Qualquer bandeira</option>
+                        {% for b in bandeiras %}<option>{{ b }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2" id="parcelas-box" hidden>
+                    <label class="form-label">Parcelas</label>
+                    <div class="input-group">
+                        <input type="number" name="parcelas_de" class="form-control" min="2" max="{{ max_parcelas }}" value="2" aria-label="de">
+                        <span class="input-group-text">a</span>
+                        <input type="number" name="parcelas_ate" class="form-control" min="2" max="{{ max_parcelas }}" value="{{ max_parcelas }}" aria-label="até">
+                    </div>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label" for="percentual">Taxa (%)</label>
+                    <div class="input-group">
+                        <input type="text" name="percentual" id="percentual" class="form-control" inputmode="decimal" placeholder="1,99" required>
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+                <div class="col-12 col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Salvar taxa</button>
+                </div>
+            </form>
+            <div class="small text-muted mt-2">Parcelado com taxas diferentes por número de parcelas? Cadastre cada faixa (ex.: 2 a 6 e 7 a 12).
+                Salvar a mesma combinação de novo só atualiza o percentual.</div>
+        </div>
+    </div>
+
+    {% if taxas %}
+    <div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>Bandeira</th><th>Modalidade</th><th style="width:12rem">Taxa</th><th></th></tr></thead>
+        <tbody>
+        {% for t in taxas %}
+            <tr>
+                <td>{{ t.bandeira or 'Qualquer bandeira' }}</td>
+                <td>{{ t.modalidade }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('main.editar_taxa', id=t.id) }}" class="input-group input-group-sm">
+                        <input type="text" name="percentual" class="form-control" inputmode="decimal"
+                               value="{{ ('%.2f'|format(t.percentual)).replace('.', ',') }}" aria-label="Taxa">
+                        <span class="input-group-text">%</span>
+                        <button class="btn btn-outline-secondary" type="submit" title="Salvar">✔</button>
+                    </form>
+                </td>
+                <td class="text-end">
+                    <form method="POST" action="{{ url_for('main.excluir_taxa', id=t.id) }}" onsubmit="return confirm('Excluir esta taxa?')">
+                        <button class="btn btn-outline-danger btn-sm" type="submit">Excluir</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+        <div class="alert alert-warning">Nenhuma taxa cadastrada ainda — vendas no cartão vão sair sem desconto de taxa.</div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const mod = document.getElementById('modalidade');
+    const ajustar = () => {
+        document.getElementById('parcelas-box').hidden = mod.value !== 'credito_parcelado';
+        document.getElementById('bandeira-box').hidden = mod.value === 'pix';
+    };
+    mod.addEventListener('change', ajustar);
+    ajustar();
+})();
+</script>
+{% endblock %}
