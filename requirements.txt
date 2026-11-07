@@ -3,3 +3,4 @@ Flask-SQLAlchemy>=3.1,<4
 Flask-Migrate>=4.0,<5
 mysql-connector-python>=9.0,<10
 gunicorn>=23,<24
+beautifulsoup4>=4.12,<5

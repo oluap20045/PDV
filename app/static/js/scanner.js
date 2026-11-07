@@ -66,7 +66,7 @@ const PdvScanner = (() => {
         const el = document.getElementById('scanner-modal');
         modal = bootstrap.Modal.getOrCreateInstance(el);
         document.getElementById('scanner-titulo').textContent =
-            opcoes.continuo ? 'Bipar produtos' : 'Ler código de barras';
+            opcoes.qr ? 'Ler QR Code do cupom' : (opcoes.continuo ? 'Bipar produtos' : 'Ler código de barras');
         status('Abrindo câmera...');
         modal.show();
 
@@ -79,7 +79,9 @@ const PdvScanner = (() => {
         try {
             await leitor.start(
                 { facingMode: 'environment' },
-                { fps: 10, qrbox: (w, h) => ({ width: Math.floor(w * 0.85), height: Math.floor(Math.min(h, w) * 0.45) }) },
+                { fps: 10, qrbox: (w, h) => opcoes.qr
+                    ? { width: Math.floor(Math.min(w, h) * 0.8), height: Math.floor(Math.min(w, h) * 0.8) }   // QR: quadrado
+                    : { width: Math.floor(w * 0.85), height: Math.floor(Math.min(h, w) * 0.45) } },               // barras: faixa
                 lido,
                 () => {}  // erro por frame sem código: normal, ignora
             );

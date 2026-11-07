@@ -75,6 +75,7 @@ class Lancamento(db.Model):
 class Fornecedor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(150), nullable=False, unique=True)
+    cnpj = db.Column(db.String(14), unique=True, nullable=True)   # só dígitos; preenchido na importação de NFC-e
     compras = db.relationship('Compra', backref='fornecedor', lazy=True)
 
     def __repr__(self):
@@ -89,6 +90,7 @@ class Compra(db.Model):
     
     fornecedor_id = db.Column(db.Integer, db.ForeignKey('fornecedor.id'), nullable=False)
     lancamento_id = db.Column(db.Integer, db.ForeignKey('lancamento.id'), nullable=True) # Link com o contas a pagar
+    chave_acesso = db.Column(db.String(44), unique=True, nullable=True)  # NFC-e importada (barra reimportação)
     
     itens = db.relationship('CompraItem', backref='compra', lazy=True, cascade="all, delete-orphan")
 
@@ -125,3 +127,16 @@ class Cliente(db.Model):
 
     def __repr__(self):
         return f'<Cliente {self.nome}>'
+
+
+class ProdutoVinculoNfce(db.Model):
+    """Memória da importação de NFC-e: 'o item X da loja Y é o produto Z'.
+    Na próxima nota da mesma loja (ou com a mesma descrição) o produto já vem casado."""
+    __tablename__ = 'produto_vinculo_nfce'
+    id = db.Column(db.Integer, primary_key=True)
+    cnpj = db.Column(db.String(14), nullable=False, default='')
+    codigo = db.Column(db.String(60), nullable=False, default='')
+    descricao = db.Column(db.String(200), nullable=False, index=True)   # normalizada (sem acento, maiúscula)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
+    produto = db.relationship('Produto')
+    __table_args__ = (db.UniqueConstraint('cnpj', 'codigo', 'descricao', name='uq_vinculo_nfce'),)

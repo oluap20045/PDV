@@ -3,7 +3,7 @@
 # ALTERAÇÃO INÍCIO - Linhas 1 a 8
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app import db
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
@@ -593,7 +593,9 @@ def nova_compra():
     produtos = Produto.query.order_by(Produto.nome).all()
     todas_as_contas = Conta.query.join(GrupoConta).order_by(GrupoConta.nome, Conta.nome).all()
     
-    return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, contas=todas_as_contas)
+    produtos_js = [{'id': p.id, 'nome': p.nome} for p in produtos]
+    return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos,
+                           produtos_js=produtos_js, contas=todas_as_contas)
 
 
 # ---------------------------------------------------------------- Clientes
@@ -699,3 +701,41 @@ def editar_cliente(id):
         flash('Cliente atualizado!', 'success')
         return redirect(url_for('main.clientes'))
     return render_template('edit_cliente.html', cliente=cliente, form=None)
+
+
+# ---------------------------------------------------------------- Compra via NFC-e (QR Code do cupom)
+
+@bp.route('/compras/nfce/ler', methods=['POST'])
+def nfce_ler():
+    from app.nfce import buscar_nfce, NfceErro
+    from app.compras_nfce import preparar_previa, assinar
+    entrada = (request.get_json(silent=True) or {}).get('url', '')
+    if not entrada.strip():
+        return jsonify(erro='Leia o QR Code ou cole a URL da nota.'), 400
+    try:
+        dados = buscar_nfce(entrada)
+    except NfceErro as e:
+        return jsonify(erro=str(e)), 400
+    token = assinar(dados)   # o que volta no "confirmar" é exatamente o que a Sefaz devolveu
+    previa = preparar_previa(dados)
+    previa['token'] = token
+    return jsonify(previa)
+
+
+@bp.route('/compras/nfce/confirmar', methods=['POST'])
+def nfce_confirmar():
+    from app.compras_nfce import ler_assinado, confirmar
+    dados = ler_assinado(request.form.get('token', ''))
+    if not dados:
+        flash('Nota inválida ou expirada — leia o QR Code de novo.', 'danger')
+        return redirect(url_for('main.nova_compra'))
+    try:
+        compra, entraram, pago = confirmar(dados, request.form, datetime.now(ZoneInfo("America/Sao_Paulo")))
+    except ValueError as e:
+        db.session.rollback()
+        flash(str(e), 'danger')
+        return redirect(url_for('main.nova_compra'))
+    situacao = 'já paga' if pago else 'em aberto no contas a pagar'
+    flash(f'Compra importada: {entraram} produto(s) entraram no estoque; '
+          f'R$ {compra.valor_total:.2f} lançado no financeiro ({situacao}).', 'success')
+    return redirect(url_for('main.compras'))

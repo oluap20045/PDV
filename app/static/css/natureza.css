@@ -138,3 +138,12 @@
 .tema-natureza .fiado-box {
     background: #fbf3dc; border: 1px dashed #d9b866; border-radius: .8rem; padding: .6rem .8rem; color: var(--casca);
 }
+
+/* Compras: importação de NFC-e */
+.tema-natureza .nfce-card { border-left: 5px solid var(--folha-600); }
+.tema-natureza .nfce-tabela tr.nfce-ok > td { background: rgba(143, 196, 110, .12); }
+.tema-natureza .nfce-tabela tr.nfce-conferir > td { background: #fbf3dc; }
+.tema-natureza .nfce-tabela tr.nfce-novo > td { background: rgba(255, 255, 255, .5); }
+.tema-natureza .nfce-motivo { color: var(--folha-700); }
+.tema-natureza tr.nfce-conferir .nfce-motivo { color: var(--casca); font-weight: 600; }
+.tema-natureza details > summary { color: var(--folha-800); }

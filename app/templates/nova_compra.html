@@ -1,6 +1,61 @@
 {% extends 'base.html' %}
 {% block content %}
     <h2>Lançar Nova Compra</h2>
+
+    <div class="card mb-4 nfce-card">
+        <div class="card-body">
+            <h5 class="card-title mb-1">🧾 Importar cupom fiscal (NFC-e)</h5>
+            <p class="small text-muted mb-2">Leia o QR Code do cupom: os itens entram no estoque e a conta a pagar é criada de uma vez. (Notas do Paraná.)</p>
+            <div class="input-group">
+                <input type="text" id="nfce-url" class="form-control" placeholder="URL do QR Code do cupom" autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary" id="nfce-qr-btn">📷 Ler QR</button>
+                <button type="button" class="btn btn-primary" id="nfce-ler-btn">Buscar nota</button>
+            </div>
+            <div id="nfce-status" class="small mt-2"></div>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('main.nfce_confirmar') }}" id="nfce-form" hidden>
+        <input type="hidden" name="token" id="nfce-token">
+        <div class="card mb-4">
+            <div class="card-header fw-bold" id="nfce-cabecalho"></div>
+            <div class="card-body">
+                <div id="nfce-duplicada" class="alert alert-danger" hidden></div>
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-5">
+                        <label class="form-label" for="nfce-conta">Conta de despesa</label>
+                        <select name="conta_id" id="nfce-conta" class="form-select" required>
+                            {% for c in contas %}<option value="{{ c.id }}" {% if c.nome == 'Matéria-Prima' %}selected{% endif %}>{{ c.grupo.nome }} / {{ c.nome }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="pago" value="1" id="nfce-pago" checked>
+                            <label class="form-check-label" for="nfce-pago">Já foi pago</label>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4" id="nfce-venc-box" hidden>
+                        <label class="form-label" for="nfce-venc">Vencimento</label>
+                        <input type="date" name="data_vencimento" id="nfce-venc" class="form-control">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                <table class="table align-middle nfce-tabela">
+                    <thead><tr><th>Item da nota</th><th style="min-width:15rem">Produto no estoque</th><th>Qtd</th><th class="text-end">Custo</th></tr></thead>
+                    <tbody id="nfce-itens"></tbody>
+                </table>
+                </div>
+                <div id="nfce-total" class="text-end"></div>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button type="button" class="btn btn-secondary" id="nfce-cancelar">Cancelar</button>
+                    <button type="submit" class="btn btn-success" id="nfce-confirmar">Confirmar compra</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <details class="mb-2" id="manual-box">
+    <summary class="h5 mb-3" style="cursor:pointer">Lançar manualmente (sem cupom)</summary>
     <form method="POST">
         <div class="card mb-4">
             <div class="card-body">
@@ -48,6 +103,7 @@
 
         <button type="submit" class="btn btn-primary mt-3">Finalizar Lançamento da Compra</button>
     </form>
+    </details>
 
     <template id="item-template">
         <tr>
@@ -64,6 +120,100 @@
     </template>
 
 <script>
+// ---------- importação de NFC-e
+(() => {
+    const produtos = {{ produtos_js|tojson }};
+    const brl = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const $ = (id) => document.getElementById(id);
+    const status = (t, tipo = 'secondary') => { $('nfce-status').className = `small mt-2 text-${tipo}`; $('nfce-status').textContent = t; };
+    const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    async function ler() {
+        const url = $('nfce-url').value.trim();
+        if (!url) return status('Leia o QR Code ou cole a URL da nota.', 'danger');
+        status('Consultando a Sefaz...');
+        $('nfce-ler-btn').disabled = true;
+        try {
+            const r = await fetch('{{ url_for("main.nfce_ler") }}', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+            const d = await r.json();
+            if (!r.ok) return status(d.erro || 'Erro ao ler a nota.', 'danger');
+            status('');
+            mostrar(d);
+        } catch (e) {
+            status('Falha de conexão: ' + e.message, 'danger');
+        } finally {
+            $('nfce-ler-btn').disabled = false;
+        }
+    }
+
+    function opcoesProduto(selecionado) {
+        return produtos.map((p) => `<option value="p:${p.id}" ${p.id === selecionado ? 'selected' : ''}>${esc(p.nome)}</option>`).join('');
+    }
+
+    function mostrar(d) {
+        $('nfce-token').value = d.token;
+        const data = d.data_compra ? new Date(d.data_compra).toLocaleString('pt-BR') : '';
+        $('nfce-cabecalho').innerHTML = `${esc(d.estabelecimento)} <span class="fw-normal text-muted">· CNPJ ${esc(d.cnpj)} · Nº ${esc(d.numero || 's/n')} · ${esc(data)}</span>
+            <div class="small fw-normal">${d.fornecedor_existente ? `Fornecedor já cadastrado: <strong>${esc(d.fornecedor_existente)}</strong>` : '<span class="text-success">Fornecedor novo — será cadastrado</span>'}
+            ${d.forma_pagamento ? ` · Pago na nota com: ${esc(d.forma_pagamento)}` : ''}</div>`;
+        $('nfce-venc').value = (d.data_compra || new Date().toISOString()).slice(0, 10);
+
+        const dup = $('nfce-duplicada');
+        dup.hidden = !d.compra_existente;
+        $('nfce-confirmar').disabled = !!d.compra_existente;
+        if (d.compra_existente) dup.textContent = `Esta nota já foi importada (compra #${d.compra_existente.id} em ${d.compra_existente.data}, ${brl(d.compra_existente.valor)}).`;
+
+        const tbody = $('nfce-itens');
+        tbody.innerHTML = '';
+        d.itens.forEach((it, i) => {
+            const tr = document.createElement('tr');
+            const casado = it.produto_id !== null;
+            tr.className = casado ? (it.confiavel ? 'nfce-ok' : 'nfce-conferir') : 'nfce-novo';
+            tr.innerHTML = `
+                <td><div class="fw-semibold">${esc(it.descricao)}</div>
+                    <div class="small text-muted">cód. ${esc(it.codigo || '—')} · nota: ${String(it.quantidade).replace('.', ',')} ${esc(it.unidade)} × ${brl(it.valor_unitario)}</div></td>
+                <td>
+                    <select name="acao_${i}" class="form-select form-select-sm nfce-acao">
+                        <option value="novo" ${casado ? '' : 'selected'}>➕ Cadastrar como novo produto</option>
+                        <option value="ignorar">🚫 Não é estoque (ignorar)</option>
+                        <optgroup label="Produtos cadastrados">${opcoesProduto(it.produto_id)}</optgroup>
+                    </select>
+                    <div class="small mt-1 nfce-motivo">${casado ? (it.confiavel ? '✔ ' : '⚠ ') + esc(it.motivo) : 'Produto não encontrado no cadastro'}</div>
+                    <div class="nfce-novo-campos mt-1" ${casado ? 'hidden' : ''}>
+                        <input name="nome_${i}" class="form-control form-control-sm mb-1" value="${esc(it.nome_sugerido)}" placeholder="Nome do produto">
+                        <input name="preco_${i}" type="number" step="0.01" min="0.01" class="form-control form-control-sm"
+                               placeholder="Preço de venda (R$)" title="Preço de venda">
+                    </div>
+                </td>
+                <td style="width:6rem"><input name="qtd_${i}" type="number" min="1" step="1" value="${it.qtd_estoque}" class="form-control form-control-sm"></td>
+                <td class="text-end text-nowrap">${brl(it.custo_total)}</td>`;
+            const sel = tr.querySelector('.nfce-acao');
+            const campos = tr.querySelector('.nfce-novo-campos');
+            const ajustar = () => {
+                campos.hidden = sel.value !== 'novo';
+                campos.querySelectorAll('input').forEach((el) => { el.required = sel.value === 'novo'; });
+                tr.querySelector('[name^=qtd_]').disabled = sel.value === 'ignorar';
+            };
+            sel.addEventListener('change', () => { tr.className = ''; ajustar(); });
+            ajustar();
+            tbody.appendChild(tr);
+        });
+        $('nfce-total').innerHTML = (d.desconto > 0 ? `<div class="small text-muted">Itens ${brl(d.valor_itens)} − desconto ${brl(d.desconto)} (rateado no custo dos itens)</div>` : '')
+            + `<div class="fs-5">Total pago: <strong>${brl(d.valor_total)}</strong></div>`;
+        $('nfce-form').hidden = false;
+        $('nfce-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    $('nfce-ler-btn').addEventListener('click', ler);
+    $('nfce-url').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ler(); } });
+    $('nfce-qr-btn').addEventListener('click', () => PdvScanner.abrir({ qr: true, onLeitura: (c) => { $('nfce-url').value = c; ler(); } }));
+    $('nfce-pago').addEventListener('change', (e) => { $('nfce-venc-box').hidden = e.target.checked; });
+    $('nfce-cancelar').addEventListener('click', () => { $('nfce-form').hidden = true; $('nfce-url').value = ''; });
+    $('nfce-form').addEventListener('submit', () => { $('nfce-confirmar').disabled = true; $('nfce-confirmar').textContent = 'Gravando...'; });
+})();
+
+// ---------- lançamento manual
 document.getElementById('add-item-btn').addEventListener('click', () => {
     const template = document.getElementById('item-template');
     const tbody = document.getElementById('itens-tbody');
