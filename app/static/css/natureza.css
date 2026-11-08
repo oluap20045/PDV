@@ -149,3 +149,6 @@
 .tema-natureza details > summary { color: var(--folha-800); }
 .tema-natureza .pag-linha { padding: .5rem 0; border-bottom: 1px dashed var(--folha-200); }
 .tema-natureza .pag-linha:last-child { border-bottom: 0; }
+
+/* PDV: venda recém-finalizada */
+.tema-natureza .ultima-venda { border-left: 5px solid var(--folha-800); background: rgba(230, 242, 220, .9); }

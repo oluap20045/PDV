@@ -1,0 +1,12 @@
+{# Botões do comprovante. Espera `venda`; `prefetch` = já baixa o PDF (necessário pro compartilhar no iPhone). #}
+<div class="d-flex flex-wrap gap-2 comprovante-botoes">
+    <button type="button" class="btn btn-sm btn-success btn-compartilhar-pdf"
+            data-pdf="{{ url_for('main.comprovante_pdf', id=venda.id) }}"
+            data-nome="comprovante-venda-{{ venda.id }}.pdf"
+            data-texto="Comprovante da compra nº {{ venda.id }}"
+            {% if prefetch %}data-prefetch="1"{% endif %}>📎 Enviar PDF</button>
+    <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"
+       href="{{ url_for('main.comprovante_whatsapp', id=venda.id) }}">💬 WhatsApp{% if venda.cliente and (venda.cliente.whatsapp or venda.cliente.telefone) and not venda.cliente.padrao %} de {{ venda.cliente.nome.split()[0] }}{% endif %}</a>
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+       href="{{ url_for('main.comprovante_pdf', id=venda.id) }}">📄 Ver / imprimir</a>
+</div>

@@ -3,14 +3,15 @@
 # ALTERAÇÃO INÍCIO - Linhas 1 a 8
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, abort
 from app import db
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
 from app.models import Compra, CompraItem, Cliente
 from app.models import NOME_CONTA_VENDAS, FORMAS_PAGAMENTO, FORMA_A_PRAZO
 from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRAS, MAX_PARCELAS,
-                        TaxaPagamento, VendaPagamento)
+                        TaxaPagamento, VendaPagamento, Empresa)
+from urllib.parse import quote
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
@@ -256,6 +257,7 @@ def venda_pdv():
             if fiado_total:
                 msg += f' — R$ {fiado_total:.2f} no fiado, a receber em {vencimento_fiado.strftime("%d/%m/%Y")}'
             flash(msg + '.', 'success')
+            return redirect(url_for('main.venda_pdv', ultima=nova_venda.id))
 
         except Exception as e:
             db.session.rollback()
@@ -271,7 +273,8 @@ def venda_pdv():
     selecionado = request.args.get('cliente', type=int)
     if not any(c.id == selecionado for c in clientes):
         selecionado = padrao.id
-    return render_template('venda.html', produtos=produtos_disponiveis,
+    ultima = db.session.get(Venda, request.args.get('ultima', type=int) or 0)
+    return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima,
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
                            formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,
@@ -725,6 +728,12 @@ def formatar_telefone(valor):
     return valor or ''
 
 
+@bp.app_template_filter('cnpj')
+def formatar_cnpj_filtro(valor):
+    d = _so_digitos(valor)
+    return f'{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}' if len(d) == 14 else (valor or '')
+
+
 @bp.app_template_filter('cpf')
 def formatar_cpf(valor):
     d = _so_digitos(valor)
@@ -916,3 +925,52 @@ def editar_taxa(id):
     db.session.commit()
     flash('Taxa atualizada.', 'success')
     return redirect(url_for('main.taxas'))
+
+
+# ---------------------------------------------------------------- Comprovante (sem valor fiscal)
+
+@bp.route('/empresa', methods=['GET', 'POST'])
+def empresa():
+    emp = Empresa.atual()
+    if request.method == 'POST':
+        nome = request.form.get('nome', '').strip()
+        cnpj = _so_digitos(request.form.get('cnpj'))
+        if not nome:
+            flash('Informe o nome da empresa.', 'danger')
+            return redirect(url_for('main.empresa'))
+        if cnpj and len(cnpj) != 14:
+            flash('CNPJ deve ter 14 dígitos.', 'danger')
+            return redirect(url_for('main.empresa'))
+        emp.nome = nome[:120]
+        emp.cnpj = cnpj or None
+        emp.telefone = _so_digitos(request.form.get('telefone')) or None
+        emp.endereco = (request.form.get('endereco') or '').strip()[:200] or None
+        emp.mensagem = (request.form.get('mensagem') or '').strip()[:200] or None
+        db.session.commit()
+        flash('Dados da empresa salvos — já aparecem nos comprovantes.', 'success')
+        return redirect(url_for('main.empresa'))
+    return render_template('empresa.html', empresa=emp)
+
+
+@bp.route('/venda/<int:id>/comprovante.pdf')
+def comprovante_pdf(id):
+    from app.comprovante import gerar_pdf
+    venda = Venda.query.get_or_404(id)
+    pdf = gerar_pdf(venda, Empresa.atual())
+    nome = f'comprovante-venda-{venda.id}.pdf'
+    disposicao = 'attachment' if request.args.get('baixar') else 'inline'
+    return Response(pdf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'{disposicao}; filename="{nome}"'})
+
+
+@bp.route('/venda/<int:id>/whatsapp')
+def comprovante_whatsapp(id):
+    """Abre o WhatsApp no número do cliente (se houver) com o resumo da compra."""
+    from app.comprovante import texto_whatsapp
+    venda = Venda.query.get_or_404(id)
+    texto = quote(texto_whatsapp(venda, Empresa.atual()))
+    numero = (venda.cliente.whatsapp or venda.cliente.telefone or '') if venda.cliente else ''
+    numero = _so_digitos(numero)
+    if numero and len(numero) in (10, 11):
+        return redirect(f'https://wa.me/55{numero}?text={texto}')
+    return redirect(f'https://wa.me/?text={texto}')   # sem número: o WhatsApp pede o contato

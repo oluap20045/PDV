@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Dados da empresa</h2>
+    <p class="text-muted">Aparecem no cabeçalho do comprovante de venda que o cliente recebe.</p>
+    <form method="POST" class="row g-3">
+        <div class="col-12 col-md-6">
+            <label class="form-label" for="nome">Nome da loja *</label>
+            <input type="text" name="nome" id="nome" class="form-control" value="{{ empresa.nome }}" required maxlength="120">
+        </div>
+        <div class="col-12 col-md-3">
+            <label class="form-label" for="cnpj">CNPJ (MEI)</label>
+            <input type="text" name="cnpj" id="cnpj" class="form-control" inputmode="numeric" placeholder="00.000.000/0000-00"
+                   value="{{ empresa.cnpj|cnpj }}">
+        </div>
+        <div class="col-12 col-md-3">
+            <label class="form-label" for="telefone">Telefone / WhatsApp</label>
+            <input type="tel" name="telefone" id="telefone" class="form-control" placeholder="(00) 00000-0000"
+                   value="{{ empresa.telefone|telefone }}">
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="endereco">Endereço</label>
+            <input type="text" name="endereco" id="endereco" class="form-control" maxlength="200" value="{{ empresa.endereco or '' }}"
+                   placeholder="Rua, número - bairro, cidade/UF">
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="mensagem">Mensagem no rodapé</label>
+            <input type="text" name="mensagem" id="mensagem" class="form-control" maxlength="200" value="{{ empresa.mensagem or '' }}"
+                   placeholder="Obrigado pela preferência! Siga @minhaloja">
+        </div>
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+    </form>
+{% endblock %}

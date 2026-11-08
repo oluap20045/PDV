@@ -3,6 +3,18 @@
 {% block conteudo_class %}{% endblock %}
 
 {% block content %}
+    {% if ultima %}
+    <div class="painel mb-4 ultima-venda">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <div class="rotulo-pag">Venda nº {{ ultima.id }} finalizada</div>
+                <div class="fs-5 fw-bold">{{ ultima.cliente.nome }} · R$ {{ "%.2f"|format(ultima.total) }}</div>
+                <div class="small text-muted">Envie o comprovante (sem valor fiscal) para o cliente:</div>
+            </div>
+            {% with venda = ultima, prefetch = True %}{% include '_comprovante_botoes.html' %}{% endwith %}
+        </div>
+    </div>
+    {% endif %}
     <h2 class="pdv-titulo mb-4"><span aria-hidden="true">🌿</span> Ponto de Venda <small>Doce natureza</small></h2>
     <div class="row g-4">
         <div class="col-12 col-md-5">

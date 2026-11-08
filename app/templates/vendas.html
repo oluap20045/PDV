@@ -96,6 +96,7 @@
                 <div class="text-muted">Lucro bruto: R$ {{ "%.2f"|format(lucro_total_venda[0]) }} · taxas de cartão: − R$ {{ "%.2f"|format(venda.taxa_total) }}</div>
                 {% endif %}
                 <h5 class="text-success">Lucro{% if venda.taxa_total %} líquido{% endif %}: R$ {{ "%.2f"|format(lucro_total_venda[0] - venda.taxa_total) }}</h5>
+                <div class="mt-2">{% with prefetch = False %}{% include '_comprovante_botoes.html' %}{% endwith %}</div>
             </div>
         </div>
         {% endfor %}

@@ -202,3 +202,22 @@ class VendaPagamento(db.Model):
         if self.forma == FORMA_DEBITO:
             return f'Débito {self.bandeira or ""}'.strip()
         return self.forma
+
+
+class Empresa(db.Model):
+    """Dados do cabeçalho do comprovante (uma linha só)."""
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(120), nullable=False, default='Minha Empresa')
+    cnpj = db.Column(db.String(14))
+    telefone = db.Column(db.String(20))
+    endereco = db.Column(db.String(200))
+    mensagem = db.Column(db.String(200), default='Obrigado pela preferência!')
+
+    @classmethod
+    def atual(cls):
+        empresa = cls.query.first()
+        if empresa is None:
+            empresa = cls(nome='Minha Empresa', mensagem='Obrigado pela preferência!')
+            db.session.add(empresa)
+            db.session.commit()
+        return empresa
