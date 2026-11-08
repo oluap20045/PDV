@@ -13,19 +13,20 @@
                 </div>
             </div>
             <div class="col-12 col-md-8"><input type="text" name="nome" class="form-control" placeholder="Nome do Produto" required></div>
-            <div class="col-6 col-md-2"><input type="number" step="0.01" name="preco" class="form-control" placeholder="Preço Venda (R$)" required></div>
-            <div class="col-6 col-md-2"><input type="number" step="0.01" name="custo" class="form-control" placeholder="Custo (R$)" required></div>
+            <div class="col-6 col-md-2"><input type="number" step="0.01" name="custo" id="custo" class="form-control" placeholder="Custo (R$)" required></div>
+            <div class="col-6 col-md-2"><input type="number" step="0.01" name="preco" id="preco" class="form-control" placeholder="Preço Venda (R$)" required></div>
             <div class="col-6 col-md-3"><input type="number" name="quantidade" class="form-control" placeholder="Quantidade em Estoque" required></div>
             <div class="col-6 col-md-2"><input type="number" name="estoque_minimo" class="form-control" placeholder="Estoque mín." required></div>
             <div class="col-12 col-md-3"><button type="submit" class="btn btn-primary w-100">Cadastrar</button></div>
         </div>
+        <div class="small mt-2 sugestao-preco" data-custo="#custo" data-preco="#preco"></div>
     </form>
 
     <h3>Produtos Cadastrados</h3>
     <div class="table-responsive">
     <table class="table table-striped">
         <thead>
-            <tr><th>ID</th><th>Código</th><th>Nome</th><th>Preço Venda</th><th>Custo</th><th>Estoque</th><th>Ações</th></tr>
+            <tr><th>ID</th><th>Código</th><th>Nome</th><th>Custo médio</th><th>Preço Venda</th><th>Sugerido</th><th>Estoque</th><th>Ações</th></tr>
             </thead>
         <tbody>
             {% for produto in produtos %}
@@ -33,8 +34,14 @@
                 <td>{{ produto.id }}</td>
                 <td><small>{{ produto.codigo_barras or '—' }}</small></td>
                 <td>{{ produto.nome }}</td>
-                <td>R$ {{ "%.2f"|format(produto.preco) }}</td>
                 <td>R$ {{ "%.2f"|format(produto.custo) }}</td>
+                <td>R$ {{ "%.2f"|format(produto.preco) }}</td>
+                {% set sug = sugestoes.get(produto.id) %}
+                <td class="text-nowrap">
+                    {% if sug %}R$ {{ "%.2f"|format(sug) }}
+                        {% if produto.preco < sug - 0.005 %}<span class="badge bg-warning text-dark" title="Preço abaixo da margem desejada">abaixo</span>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
                 <td>{{ produto.quantidade }}</td>
                 <td>
                     <a href="{{ url_for('main.editar_produto', id=produto.id) }}" class="btn btn-warning btn-sm">Editar</a>

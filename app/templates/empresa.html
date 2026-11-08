@@ -27,6 +27,18 @@
             <input type="text" name="mensagem" id="mensagem" class="form-control" maxlength="200" value="{{ empresa.mensagem or '' }}"
                    placeholder="Obrigado pela preferência! Siga @minhaloja">
         </div>
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="margem_lucro">Margem de lucro desejada</label>
+            <div class="input-group">
+                <input type="text" name="margem_lucro" id="margem_lucro" class="form-control" inputmode="decimal"
+                       value="{{ ('%g'|format(empresa.margem_lucro)).replace('.', ',') }}">
+                <span class="input-group-text">% do preço</span>
+            </div>
+        </div>
+        <div class="col-12 col-md-8 small text-muted d-flex align-items-end">
+            <div>Usada na <strong>sugestão de preço</strong>: preço = custo médio ÷ (1 − margem − maior taxa de cartão{% if preco.taxa %}, hoje {{ ('%.2f'|format(preco.taxa)).replace('.', ',') }}%{% endif %}).
+            Lembre que mão de obra, gás, energia e o DAS saem dessa margem.</div>
+        </div>
         <div class="col-12">
             <button type="submit" class="btn btn-primary">Salvar</button>
         </div>

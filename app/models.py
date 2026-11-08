@@ -212,6 +212,7 @@ class Empresa(db.Model):
     telefone = db.Column(db.String(20))
     endereco = db.Column(db.String(200))
     mensagem = db.Column(db.String(200), default='Obrigado pela preferência!')
+    margem_lucro = db.Column(db.Float, nullable=False, default=30.0)   # % do preço, usada na sugestão de preço
 
     @classmethod
     def atual(cls):

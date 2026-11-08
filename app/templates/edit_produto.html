@@ -26,6 +26,7 @@
                 <label for="custo" class="form-label">Custo (R$)</label>
                 <input type="number" step="0.01" name="custo" id="custo" class="form-control" value="{{ produto.custo }}" required>
             </div>
+            <div class="col-12 mb-3 small sugestao-preco" data-custo="#custo" data-preco="#preco"></div>
             <div class="col-md-4 mb-3">
                 <label for="quantidade" class="form-label">Quantidade em Estoque</label>
                 <input type="number" name="quantidade" id="quantidade" class="form-control" value="{{ produto.quantidade }}" required>

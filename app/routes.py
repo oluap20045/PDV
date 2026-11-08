@@ -12,6 +12,7 @@ from app.models import NOME_CONTA_VENDAS, FORMAS_PAGAMENTO, FORMA_A_PRAZO
 from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRAS, MAX_PARCELAS,
                         TaxaPagamento, VendaPagamento, Empresa)
 from urllib.parse import quote
+from app.precificacao import registrar_entrada, parametros as parametros_preco
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
@@ -150,7 +151,10 @@ def produtos():
         return redirect(url_for('main.produtos'))
 
     lista_produtos = Produto.query.all()
-    return render_template('produtos.html', produtos=lista_produtos)
+    from app.precificacao import preco_sugerido
+    params = parametros_preco()
+    sugestoes = {p.id: preco_sugerido(p.custo, params['margem'], params['taxa']) for p in lista_produtos}
+    return render_template('produtos.html', produtos=lista_produtos, preco=params, sugestoes=sugestoes)
 
 # Rota para Controle de Estoque
 # ALTERAÇÃO: troque @app.route por @bp.route
@@ -361,7 +365,7 @@ def editar_produto(id):
         return redirect(url_for('main.produtos'))
     
     # Se for o primeiro acesso (GET), exibe o formulário preenchido com os dados atuais
-    return render_template('edit_produto.html', produto=produto)
+    return render_template('edit_produto.html', produto=produto, preco=parametros_preco())
 
 
 @bp.route('/contas-e-grupos', methods=['GET', 'POST'])
@@ -640,8 +644,7 @@ def nova_compra():
                 
                 # Atualiza estoque e custo do produto
                 produto = Produto.query.get(produto_id)
-                produto.quantidade += quantidade
-                produto.custo = custo # Atualiza para o custo mais recente
+                registrar_entrada(produto, quantidade, custo)   # estoque + custo médio ponderado
                 
                 total_compra += quantidade * custo
 
@@ -678,7 +681,7 @@ def nova_compra():
     todas_as_contas = Conta.query.join(GrupoConta).order_by(GrupoConta.nome, Conta.nome).all()
     
     produtos_js = [{'id': p.id, 'nome': p.nome} for p in produtos]
-    return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos,
+    return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, preco=parametros_preco(),
                            produtos_js=produtos_js, contas=todas_as_contas)
 
 
@@ -946,10 +949,18 @@ def empresa():
         emp.telefone = _so_digitos(request.form.get('telefone')) or None
         emp.endereco = (request.form.get('endereco') or '').strip()[:200] or None
         emp.mensagem = (request.form.get('mensagem') or '').strip()[:200] or None
+        try:
+            margem = float((request.form.get('margem_lucro') or '30').replace(',', '.'))
+        except ValueError:
+            margem = -1
+        if not 0 <= margem < 90:
+            flash('Margem de lucro deve ficar entre 0 e 90%.', 'danger')
+            return redirect(url_for('main.empresa'))
+        emp.margem_lucro = margem
         db.session.commit()
         flash('Dados da empresa salvos — já aparecem nos comprovantes.', 'success')
         return redirect(url_for('main.empresa'))
-    return render_template('empresa.html', empresa=emp)
+    return render_template('empresa.html', empresa=emp, preco=parametros_preco())
 
 
 @bp.route('/venda/<int:id>/comprovante.pdf')

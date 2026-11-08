@@ -9,6 +9,7 @@ from flask import current_app
 from itsdangerous import BadSignature, URLSafeSerializer
 
 from app import db
+from app.precificacao import registrar_entrada
 from app.models import (Compra, CompraItem, Conta, Fornecedor, Lancamento, Produto,
                         ProdutoVinculoNfce)
 
@@ -183,8 +184,7 @@ def confirmar(dados, form, agora):
         else:
             continue
 
-        produto.quantidade += qtd
-        produto.custo = custo_unit
+        registrar_entrada(produto, qtd, custo_unit)   # estoque + custo médio ponderado
         db.session.add(CompraItem(compra=compra, produto_id=produto.id, quantidade=qtd, custo_unitario=custo_unit))
         entraram += 1
 
