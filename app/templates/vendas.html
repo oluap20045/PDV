@@ -48,7 +48,7 @@
 
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between">
-                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }}</span>
+                <span><strong>Venda #{{ venda.id }}</strong> · {{ venda.cliente.nome }}{% if venda.usuario %} <small class="text-muted">· vendido por {{ venda.usuario.nome.split()[0] }}</small>{% endif %}</span>
                 <span>Data: {{ venda.data.strftime('%d/%m/%Y %H:%M') }}</span>
             </div>
             <div class="card-body">

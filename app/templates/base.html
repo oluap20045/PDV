@@ -12,6 +12,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('main.index') }}"><span aria-hidden="true">🌿</span> PDV</a>
+            {% if current_user.is_authenticated %}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu-principal"
                     aria-controls="menu-principal" aria-expanded="false" aria-label="Abrir menu">
                 <span class="navbar-toggler-icon"></span>
@@ -29,9 +30,27 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.compras') }}">Compras</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.fornecedores') }}">Fornecedores</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.gerenciar_contas') }}">Contas e Grupos</a></li>
-
+                </ul>
+                <ul class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="menu-usuario" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span aria-hidden="true">👤</span> {{ current_user.nome.split()[0] }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="menu-usuario">
+                            <li><span class="dropdown-item-text small text-muted">Conectado como <strong>{{ current_user.login }}</strong></span></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.trocar_senha') }}">Trocar senha</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.usuarios') }}">Usuários</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="{{ url_for('auth.logout') }}" class="m-0">
+                                    <button type="submit" class="dropdown-item text-danger">Sair</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
+            {% endif %}
         </div>
     </nav>
 <div class="container mt-4">

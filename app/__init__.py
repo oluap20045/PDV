@@ -15,6 +15,11 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
 
+    from app.auth import bp as auth_blueprint, exigir_login, login_manager
+    login_manager.init_app(app)
+    app.register_blueprint(auth_blueprint)
+    app.before_request(exigir_login)   # todas as telas exigem login, menos login/cadastro
+
     # ALTERAÇÃO INÍCIO - Linhas 18 a 21
     # Importa o Blueprint do nosso arquivo de rotas
     from app.routes import bp as main_blueprint

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block conteudo_class %}painel mb-4 mx-auto acesso-cartao{% endblock %}
+{% block content %}
+    <div class="text-center mb-3">
+        <div class="acesso-folha" aria-hidden="true">🌿</div>
+        <h2 class="h4 mb-0">Entrar no PDV</h2>
+    </div>
+    <form method="POST" novalidate>
+        <div class="mb-3">
+            <label class="form-label" for="login">Usuário</label>
+            <input type="text" name="login" id="login" class="form-control form-control-lg" value="{{ login }}"
+                   autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="senha">Senha</label>
+            <div class="input-group">
+                <input type="password" name="senha" id="senha" class="form-control form-control-lg" autocomplete="current-password" required>
+                <button type="button" class="btn btn-outline-secondary" data-mostrar-senha="senha" aria-label="Mostrar senha">👁</button>
+            </div>
+        </div>
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="lembrar" value="1" id="lembrar" checked>
+            <label class="form-check-label" for="lembrar">Manter conectado neste aparelho (30 dias)</label>
+        </div>
+        <button type="submit" class="btn btn-success btn-lg w-100">Entrar</button>
+    </form>
+    {% if cadastro %}
+    <hr>
+    <p class="text-center mb-0">Ainda não tem acesso? <a href="{{ url_for('auth.cadastro') }}">Criar conta</a></p>
+    {% endif %}
+{% endblock %}

@@ -1,7 +1,12 @@
 # Local: app/models.py
 
+import hashlib
+from datetime import datetime, timedelta
+
+from flask_login import UserMixin
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from app import db
-from datetime import datetime
 
 NOME_CLIENTE_PADRAO = 'Consumidor final'
 NOME_CONTA_VENDAS = 'Venda de Produtos'
@@ -32,6 +37,8 @@ class Venda(db.Model):
     cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False, index=True)
     forma_pagamento = db.Column(db.String(120), nullable=False, default='Dinheiro')   # resumo: "Pix + Crédito Visa 3x"
     taxa_total = db.Column(db.Float, nullable=False, default=0.0)   # taxas de cartão (custo da venda)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True, index=True)   # quem vendeu
+    usuario = db.relationship('Usuario')
     pagamentos = db.relationship('VendaPagamento', backref='venda', lazy=True, cascade='all, delete-orphan',
                                  order_by='VendaPagamento.id')
     itens = db.relationship('ItemVenda', backref='venda', lazy=True)
@@ -213,6 +220,7 @@ class Empresa(db.Model):
     endereco = db.Column(db.String(200))
     mensagem = db.Column(db.String(200), default='Obrigado pela preferência!')
     margem_lucro = db.Column(db.Float, nullable=False, default=30.0)   # % do preço, usada na sugestão de preço
+    cadastro_aberto = db.Column(db.Boolean, nullable=False, default=True)   # "Criar conta" na tela de login
 
     @classmethod
     def atual(cls):
@@ -222,3 +230,39 @@ class Empresa(db.Model):
             db.session.add(empresa)
             db.session.commit()
         return empresa
+
+
+class Usuario(UserMixin, db.Model):
+    """Quem acessa o sistema. Senha guardada só como hash."""
+    MAX_TENTATIVAS = 5
+    BLOQUEIO = timedelta(minutes=5)
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), nullable=False)
+    login = db.Column(db.String(50), nullable=False, unique=True)     # sempre minúsculo
+    senha_hash = db.Column(db.String(255), nullable=False)
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    ultimo_acesso = db.Column(db.DateTime)
+    tentativas_falhas = db.Column(db.Integer, nullable=False, default=0)
+    bloqueado_ate = db.Column(db.DateTime)
+
+    def definir_senha(self, senha):
+        self.senha_hash = generate_password_hash(senha)
+
+    def senha_confere(self, senha):
+        return check_password_hash(self.senha_hash, senha)
+
+    @property
+    def is_active(self):
+        return bool(self.ativo)
+
+    def get_id(self):
+        # id + carimbo da senha: trocar a senha derruba as sessões abertas em outros aparelhos
+        return f'{self.id}:{self.carimbo_senha()}'
+
+    def carimbo_senha(self):
+        return hashlib.sha256(self.senha_hash.encode()).hexdigest()[:16]
+
+    def bloqueado(self, agora=None):
+        return bool(self.bloqueado_ate and self.bloqueado_ate > (agora or datetime.now()))

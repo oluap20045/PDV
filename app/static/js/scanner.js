@@ -110,3 +110,15 @@ document.addEventListener('keydown', (ev) => {
     const prox = campos[campos.indexOf(alvo) + 1];
     if (prox) prox.focus();
 });
+
+// Botão 👁 ao lado de campos de senha: mostra/esconde o que foi digitado
+document.addEventListener('click', (ev) => {
+    const botao = ev.target.closest && ev.target.closest('[data-mostrar-senha]');
+    if (!botao) return;
+    const campo = document.getElementById(botao.dataset.mostrarSenha);
+    if (!campo) return;
+    const mostrar = campo.type === 'password';
+    campo.type = mostrar ? 'text' : 'password';
+    botao.setAttribute('aria-label', mostrar ? 'Esconder senha' : 'Mostrar senha');
+    campo.focus();
+});

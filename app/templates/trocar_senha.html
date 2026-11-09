@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block conteudo_class %}painel mb-4 mx-auto acesso-cartao{% endblock %}
+{% block content %}
+    <h2 class="h4">Trocar senha</h2>
+    <p class="small text-muted">Usuário <strong>{{ current_user.login }}</strong>. Depois da troca, os outros aparelhos conectados pedem login de novo.</p>
+    <form method="POST" novalidate>
+        <div class="mb-3">
+            <label class="form-label" for="atual">Senha atual</label>
+            <input type="password" name="atual" id="atual" class="form-control" autocomplete="current-password" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="nova">Nova senha</label>
+            <div class="input-group">
+                <input type="password" name="nova" id="nova" class="form-control" minlength="{{ senha_minima }}" autocomplete="new-password" required>
+                <button type="button" class="btn btn-outline-secondary" data-mostrar-senha="nova" aria-label="Mostrar senha">👁</button>
+            </div>
+            <div class="form-text">Pelo menos {{ senha_minima }} caracteres.</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="confirmacao">Repita a nova senha</label>
+            <input type="password" name="confirmacao" id="confirmacao" class="form-control" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="btn btn-success w-100">Salvar nova senha</button>
+    </form>
+{% endblock %}

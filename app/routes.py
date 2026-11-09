@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, abort
 from app import db
+from flask_login import current_user
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
 from app.models import Compra, CompraItem, Cliente
@@ -225,7 +226,8 @@ def venda_pdv():
             return redirect(url_for('main.venda_pdv'))
 
         total_venda = 0
-        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id, forma_pagamento='')
+        nova_venda = Venda(total=0, data=data_da_venda, cliente_id=cliente.id, forma_pagamento='',
+                           usuario_id=current_user.id)
         db.session.add(nova_venda)
         db.session.flush()
 

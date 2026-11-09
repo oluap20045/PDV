@@ -152,3 +152,7 @@
 
 /* PDV: venda recém-finalizada */
 .tema-natureza .ultima-venda { border-left: 5px solid var(--folha-800); background: rgba(230, 242, 220, .9); }
+
+/* Login / criar conta / trocar senha */
+.tema-natureza .acesso-cartao { max-width: 420px; }
+.tema-natureza .acesso-folha { font-size: 2.6rem; line-height: 1; margin-bottom: .3rem; }

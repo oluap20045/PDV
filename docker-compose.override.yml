@@ -8,6 +8,7 @@ services:
       - "5000:5000"
     environment:
       SECRET_KEY: dev
+      COOKIE_SEGURO: "0"
       DATABASE_URL: mysql+mysqlconnector://pdv:pdvpass@db/pdv_db
     volumes:
       - .:/app

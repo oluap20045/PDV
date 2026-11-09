@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block conteudo_class %}painel mb-4 mx-auto acesso-cartao{% endblock %}
+{% block content %}
+    <div class="text-center mb-3">
+        <div class="acesso-folha" aria-hidden="true">🌱</div>
+        <h2 class="h4 mb-0">{% if primeiro %}Criar o primeiro acesso{% elif current_user.is_authenticated %}Novo usuário{% else %}Criar conta{% endif %}</h2>
+        {% if primeiro %}<p class="small text-muted mt-1 mb-0">Ainda não há nenhum usuário. Este será o primeiro.</p>{% endif %}
+    </div>
+    <form method="POST" novalidate>
+        <div class="mb-3">
+            <label class="form-label" for="nome">Nome</label>
+            <input type="text" name="nome" id="nome" class="form-control" value="{{ dados.nome }}" maxlength="100"
+                   autocomplete="name" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="login">Usuário (para entrar)</label>
+            <input type="text" name="login" id="login" class="form-control" value="{{ dados.login }}" maxlength="50"
+                   autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"
+                   pattern="[a-z0-9._\-]{3,50}" placeholder="ex.: paulo" required>
+            <div class="form-text">Letras minúsculas, números, ponto, hífen ou _.</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="senha">Senha</label>
+            <div class="input-group">
+                <input type="password" name="senha" id="senha" class="form-control" minlength="{{ senha_minima }}"
+                       autocomplete="new-password" required>
+                <button type="button" class="btn btn-outline-secondary" data-mostrar-senha="senha" aria-label="Mostrar senha">👁</button>
+            </div>
+            <div class="form-text">Pelo menos {{ senha_minima }} caracteres.</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="confirmacao">Repita a senha</label>
+            <input type="password" name="confirmacao" id="confirmacao" class="form-control" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="btn btn-success w-100">{% if current_user.is_authenticated %}Criar usuário{% else %}Criar conta e entrar{% endif %}</button>
+    </form>
+    <hr>
+    <p class="text-center mb-0">
+        {% if current_user.is_authenticated %}<a href="{{ url_for('auth.usuarios') }}">Voltar para usuários</a>
+        {% elif not primeiro %}Já tem acesso? <a href="{{ url_for('auth.login') }}">Entrar</a>{% endif %}
+    </p>
+{% endblock %}
