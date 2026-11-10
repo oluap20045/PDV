@@ -22,18 +22,23 @@
         <div class="small mt-2 sugestao-preco" data-custo="#custo" data-preco="#preco"></div>
     </form>
 
-    <h3>Produtos Cadastrados</h3>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h3 class="mb-0">Produtos Cadastrados <small class="text-muted fs-6">({{ produtos|length }})</small></h3>
+        <a href="{{ url_for('main.importar_catalogo') }}" class="btn btn-outline-success btn-sm">📖 Importar catálogo (PDF/planilha)</a>
+    </div>
+    <input type="search" id="filtro-produtos" class="form-control mb-2" placeholder="Buscar por nome, código ou categoria">
     <div class="table-responsive">
     <table class="table table-striped">
         <thead>
-            <tr><th>ID</th><th>Código</th><th>Nome</th><th>Custo médio</th><th>Preço Venda</th><th>Sugerido</th><th>Estoque</th><th>Ações</th></tr>
+            <tr><th>ID</th><th>Código</th><th>Nome</th><th>Categoria</th><th>Custo médio</th><th>Preço Venda</th><th>Sugerido</th><th>Estoque</th><th>Ações</th></tr>
             </thead>
         <tbody>
             {% for produto in produtos %}
-            <tr>
+            <tr class="linha-produto" data-busca="{{ (produto.nome ~ ' ' ~ (produto.codigo_barras or '') ~ ' ' ~ (produto.codigo_fornecedor or '') ~ ' ' ~ (produto.categoria or ''))|lower }}">
                 <td>{{ produto.id }}</td>
-                <td><small>{{ produto.codigo_barras or '—' }}</small></td>
+                <td><small>{{ produto.codigo_barras or '—' }}{% if produto.codigo_fornecedor %}<br><span class="text-muted" title="Código do catálogo">cat. {{ produto.codigo_fornecedor }}</span>{% endif %}</small></td>
                 <td>{{ produto.nome }}</td>
+                <td><small>{{ produto.categoria or '' }}</small></td>
                 <td>R$ {{ "%.2f"|format(produto.custo) }}</td>
                 <td>R$ {{ "%.2f"|format(produto.preco) }}</td>
                 {% set sug = sugestoes.get(produto.id) %}
@@ -51,4 +56,13 @@
         </tbody>
     </table>
     </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('filtro-produtos').addEventListener('input', (ev) => {
+    const q = ev.target.value.trim().toLowerCase();
+    document.querySelectorAll('tr.linha-produto').forEach(tr => { tr.style.display = !q || tr.dataset.busca.includes(q) ? '' : 'none'; });
+});
+</script>
 {% endblock %}

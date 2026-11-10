@@ -151,7 +151,7 @@ def produtos():
         flash('Produto cadastrado com sucesso!', 'success')
         return redirect(url_for('main.produtos'))
 
-    lista_produtos = Produto.query.all()
+    lista_produtos = Produto.query.order_by(Produto.nome).all()
     from app.precificacao import preco_sugerido
     params = parametros_preco()
     sugestoes = {p.id: preco_sugerido(p.custo, params['margem'], params['taxa']) for p in lista_produtos}
@@ -987,3 +987,55 @@ def comprovante_whatsapp(id):
     if numero and len(numero) in (10, 11):
         return redirect(f'https://wa.me/55{numero}?text={texto}')
     return redirect(f'https://wa.me/?text={texto}')   # sem número: o WhatsApp pede o contato
+
+
+@bp.route('/produtos/importar', methods=['GET', 'POST'])
+def importar_catalogo():
+    """Sobe a revista (PDF) ou a planilha revisada; mostra a prévia antes de gravar."""
+    from app import catalogo
+    if request.method == 'POST':
+        arq = request.files.get('arquivo')
+        if not arq or not arq.filename:
+            flash('Escolha o arquivo da revista (PDF) ou a planilha.', 'danger')
+            return redirect(url_for('main.importar_catalogo'))
+        nome = arq.filename.lower()
+        dados = arq.read()
+        try:
+            if nome.endswith('.pdf'):
+                if not dados.startswith(b'%PDF'):
+                    raise ValueError('Esse arquivo não parece um PDF.')
+                itens = catalogo.extrair_pdf(dados)
+            elif nome.endswith(('.xlsx', '.csv')):
+                itens = catalogo.ler_planilha(nome, dados)
+            else:
+                raise ValueError('Formato não suportado: envie .pdf, .xlsx ou .csv.')
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('main.importar_catalogo'))
+        except Exception as e:  # PDF corrompido, planilha estranha...
+            flash(f'Não consegui ler o arquivo ({e}).', 'danger')
+            return redirect(url_for('main.importar_catalogo'))
+        if not itens:
+            flash('Nenhum produto com código encontrado no arquivo.', 'warning')
+            return redirect(url_for('main.importar_catalogo'))
+        linhas = catalogo.comparar(itens)
+        return render_template('importar_catalogo.html', linhas=linhas, token=catalogo.assinar(linhas),
+                               arquivo=arq.filename, origem='pdf' if nome.endswith('.pdf') else 'planilha')
+    return render_template('importar_catalogo.html', linhas=None)
+
+
+@bp.route('/produtos/importar/confirmar', methods=['POST'])
+def importar_catalogo_confirmar():
+    from app import catalogo
+    itens = catalogo.ler_assinado(request.form.get('token', ''))
+    if itens is None:
+        flash('Prévia inválida ou expirada. Suba o arquivo de novo.', 'danger')
+        return redirect(url_for('main.importar_catalogo'))
+    try:
+        criados, atualizados = catalogo.aplicar(itens, request.form)
+    except ValueError as e:
+        db.session.rollback()
+        flash(f'{e} Nada foi gravado; suba o arquivo de novo.', 'danger')
+        return redirect(url_for('main.importar_catalogo'))
+    flash(f'Catálogo importado: {criados} produto(s) novo(s), {atualizados} preço(s) atualizado(s).', 'success')
+    return redirect(url_for('main.produtos'))

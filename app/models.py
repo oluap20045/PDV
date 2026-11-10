@@ -26,6 +26,8 @@ class Produto(db.Model):
     quantidade = db.Column(db.Integer, nullable=False, default=0)
     estoque_minimo = db.Column(db.Integer, nullable=False, default=0)
     codigo_barras = db.Column(db.String(50), unique=True, nullable=True, index=True)
+    codigo_fornecedor = db.Column(db.String(20), unique=True, nullable=True)   # ex.: código Cacau Show do catálogo
+    categoria = db.Column(db.String(60), nullable=True)
 
     def __repr__(self):
         return f'<Produto {self.nome}>'

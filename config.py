@@ -20,3 +20,7 @@ class Config:
     REMEMBER_COOKIE_DURATION = timedelta(days=30)   # "manter conectado" no celular do caixa
     # atrás do Caddy é sempre HTTPS; em dev (http) defina COOKIE_SEGURO=0
     SESSION_COOKIE_SECURE = REMEMBER_COOKIE_SECURE = os.environ.get('COOKIE_SEGURO', '1') == '1'
+
+    # upload da revista em PDF (~35 MB) e prévia com centenas de linhas
+    MAX_CONTENT_LENGTH = 80 * 1024 * 1024
+    MAX_FORM_PARTS = 5000

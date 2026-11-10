@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="mb-0">Importar catálogo</h2>
+        <a href="{{ url_for('main.produtos') }}" class="btn btn-outline-secondary btn-sm">Voltar aos produtos</a>
+    </div>
+
+    {% if linhas is none %}
+    <p class="text-muted">Suba a <strong>revista do ciclo em PDF</strong> (do jeito que baixa da Cacau Show) ou uma
+        <strong>planilha</strong> (.xlsx ou .csv com as colunas Código, Nome, Peso, Preço, Categoria).
+        Nada é gravado antes de você conferir a prévia.</p>
+    <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end" id="form-upload">
+        <div class="col-12 col-md-8">
+            <input type="file" name="arquivo" class="form-control" accept=".pdf,.xlsx,.csv" required>
+        </div>
+        <div class="col-12 col-md-4">
+            <button type="submit" class="btn btn-success w-100" id="btn-ler">Ler arquivo</button>
+        </div>
+    </form>
+    <ul class="small text-muted mt-3 mb-0">
+        <li>O produto é reconhecido pelo <strong>código do catálogo</strong> (ex.: 1004038). Num ciclo novo, só o preço muda.</li>
+        <li>Só vem marcado o que é <strong>certeza</strong>: preço logo abaixo do código. Preço de grupo, em outra página
+            ou de promoção vai para <strong>dúvidas</strong>, desmarcado.</li>
+        <li>Produtos novos entram com estoque 0 e custo 0: o custo vem quando você lança a compra.</li>
+    </ul>
+    {% else %}
+    {% set n = {'atualizar': 0, 'novo': 0, 'duvida': 0, 'igual': 0} %}
+    {% for l in linhas %}{% if n.update({l.acao: n[l.acao] + 1}) %}{% endif %}{% endfor %}
+    {% set marcados = linhas|selectattr('marcado')|list|length %}
+    <p class="mb-2"><strong>{{ arquivo }}</strong>: {{ linhas|length }} produtos lidos —
+        <span class="badge bg-success">{{ n.atualizar }} preço(s) a atualizar</span>
+        <span class="badge bg-primary">{{ n.novo }} novo(s)</span>
+        <span class="badge bg-warning text-dark">{{ n.duvida }} dúvida(s)</span>
+        <span class="badge bg-secondary">{{ n.igual }} sem mudança</span></p>
+    <p class="small text-muted">Marcados = vão ser gravados. Confira as linhas amarelas: dá pra corrigir nome e preço antes de marcar.</p>
+
+    <form method="POST" action="{{ url_for('main.importar_catalogo_confirmar') }}" id="form-importar">
+        <input type="hidden" name="token" value="{{ token }}">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            <input type="search" id="filtro" class="form-control form-control-sm" style="max-width: 260px" placeholder="Filtrar por nome ou código">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-marcar="todos">Marcar todos</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-marcar="nenhum">Desmarcar todos</button>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm align-middle" id="tabela-catalogo">
+            <thead>
+                <tr><th></th><th>Código</th><th>Produto</th><th class="text-end">Preço atual</th><th style="min-width: 110px">Preço novo</th><th>Situação</th></tr>
+            </thead>
+            <tbody>
+            {% for l in linhas %}
+                {% set i = loop.index0 %}
+                <tr class="linha-cat {{ {'atualizar': '', 'novo': '', 'duvida': 'table-warning', 'igual': 'text-muted linha-igual'}[l.acao] }}{% if l.acao in ('atualizar', 'novo') and not l.marcado %} table-warning{% endif %}"
+                    data-busca="{{ (l.codigo ~ ' ' ~ (l.nome_final or ''))|lower }}">
+                    <td>
+                        {% if l.acao != 'igual' %}
+                        <input class="form-check-input" type="checkbox" name="ok_{{ i }}" value="1" {{ 'checked' if l.marcado }}
+                               aria-label="Gravar {{ l.codigo }}">
+                        {% endif %}
+                    </td>
+                    <td><code>{{ l.codigo }}</code>{% if l.pagina %}<div class="small text-muted">pág. {{ l.pagina }}</div>{% endif %}</td>
+                    <td>
+                        {% if l.produto_id or l.acao == 'igual' %}
+                            {{ l.nome_final }}
+                            <input type="hidden" name="nome_{{ i }}" value="{{ l.nome_final }}">
+                        {% else %}
+                            <input type="text" name="nome_{{ i }}" class="form-control form-control-sm" maxlength="100"
+                                   value="{{ l.nome_final or '' }}" placeholder="Nome do produto">
+                        {% endif %}
+                        {% if l.categoria %}<div class="small text-muted">{{ l.categoria }}</div>{% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">{{ 'R$ %.2f'|format(l.preco_atual) if l.preco_atual is not none else '—' }}</td>
+                    <td>
+                        {% if l.acao != 'igual' %}
+                        <input type="text" name="preco_{{ i }}" class="form-control form-control-sm" inputmode="decimal"
+                               value="{{ ('%.2f'|format(l.preco)).replace('.', ',') if l.preco else '' }}" placeholder="0,00">
+                        {% else %}R$ {{ '%.2f'|format(l.preco) }}{% endif %}
+                    </td>
+                    <td class="small">
+                        {% if l.acao == 'atualizar' %}<span class="badge bg-success">atualizar</span>
+                        {% elif l.acao == 'novo' %}<span class="badge bg-primary">novo</span>
+                        {% elif l.acao == 'duvida' %}<span class="badge bg-warning text-dark">dúvida</span>
+                        {% else %}<span class="badge bg-secondary">igual</span>{% endif %}
+                        {{ l.motivo }}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center sticky-bottom py-2 painel-rodape">
+            <button type="submit" class="btn btn-success">Gravar marcados (<span id="qtd-marcados">{{ marcados }}</span>)</button>
+            <a href="{{ url_for('main.importar_catalogo') }}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const up = document.getElementById('form-upload');
+    if (up) up.addEventListener('submit', () => {
+        const b = document.getElementById('btn-ler'); b.disabled = true; b.textContent = 'Lendo a revista...';
+    });
+    const form = document.getElementById('form-importar');
+    if (!form) return;
+    const caixas = () => Array.from(form.querySelectorAll('input[type=checkbox][name^=ok_]'));
+    const contar = () => { document.getElementById('qtd-marcados').textContent = caixas().filter(c => c.checked).length; };
+    form.addEventListener('change', contar);
+    // mexeu no preço ou no nome: marca a linha
+    form.addEventListener('input', (ev) => {
+        const tr = ev.target.closest('tr');
+        const cx = tr && tr.querySelector('input[type=checkbox]');
+        if (cx && ev.target.name && !ev.target.name.startsWith('ok_')) { cx.checked = true; contar(); }
+    });
+    document.querySelectorAll('[data-marcar]').forEach(b => b.addEventListener('click', () => {
+        const marcar = b.dataset.marcar === 'todos';
+        caixas().forEach(c => { if (c.closest('tr').style.display !== 'none') c.checked = marcar; });
+        contar();
+    }));
+    document.getElementById('filtro').addEventListener('input', (ev) => {
+        const q = ev.target.value.trim().toLowerCase();
+        form.querySelectorAll('tr.linha-cat').forEach(tr => { tr.style.display = !q || tr.dataset.busca.includes(q) ? '' : 'none'; });
+    });
+    form.addEventListener('submit', (ev) => {
+        for (const c of caixas().filter(c => c.checked)) {
+            const tr = c.closest('tr');
+            const preco = tr.querySelector('input[name^=preco_]');
+            const nome = tr.querySelector('input[type=text][name^=nome_]');
+            const valor = parseFloat((preco.value || '').replace(/\./g, (preco.value.includes(',') ? '' : '.')).replace(',', '.'));
+            if (!(valor > 0)) { ev.preventDefault(); tr.style.display = ''; preco.focus(); alert('Preço vazio ou inválido numa linha marcada.'); return; }
+            if (nome && !nome.value.trim()) { ev.preventDefault(); tr.style.display = ''; nome.focus(); alert('Digite o nome do produto novo.'); return; }
+        }
+        if (!caixas().some(c => c.checked)) { ev.preventDefault(); alert('Nenhuma linha marcada.'); }
+    });
+})();
+</script>
+{% endblock %}

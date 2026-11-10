@@ -56,6 +56,11 @@ def casar_item(item, cnpj, produtos, por_nome):
         p = Produto.query.filter_by(codigo_barras=codigo).first()
         if p:
             return p, 'mesmo código de barras', True
+    # 2b. código da nota é o código do catálogo do fornecedor (ex.: Cacau Show 1004038)
+    if codigo:
+        p = Produto.query.filter_by(codigo_fornecedor=codigo.lstrip('0') or codigo).first()
+        if p:
+            return p, 'mesmo código do catálogo', True
     # 3. mesma descrição já vinculada (outra loja)
     v = ProdutoVinculoNfce.query.filter_by(descricao=desc).first()
     if v:
