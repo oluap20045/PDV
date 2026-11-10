@@ -223,6 +223,7 @@ class Empresa(db.Model):
     mensagem = db.Column(db.String(200), default='Obrigado pela preferência!')
     margem_lucro = db.Column(db.Float, nullable=False, default=30.0)   # % do preço, usada na sugestão de preço
     cadastro_aberto = db.Column(db.Boolean, nullable=False, default=True)   # "Criar conta" na tela de login
+    saldo_inicial = db.Column(db.Float, nullable=False, default=0.0)   # dinheiro em caixa/banco antes dos lançamentos
 
     @classmethod
     def atual(cls):

@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% macro brl(v) %}R$ {{ ('{:,.2f}'.format(v)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endmacro %}
+{% block head %}
+<style>
+    .fluxo { --ent: #2a78d6; --sai: #eb6834; --saldo: #2c5020; --tinta-2: #52514e; }
+    .fluxo .stat { border: 1px solid rgba(61, 110, 41, .18); border-radius: .75rem; padding: .8rem 1rem; background: #fff; height: 100%; }
+    .fluxo .stat .rot { font-size: .8rem; color: var(--tinta-2); }
+    .fluxo .stat .val { font-size: 1.45rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .fluxo .stat .sub { font-size: .78rem; color: var(--tinta-2); }
+    .fluxo .marca { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; vertical-align: -1px; margin-right: .25rem; }
+    .fluxo .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .fluxo .negativo { color: #b3261e; }
+    .fluxo tr.previsto td { font-style: italic; }
+    .fluxo tr.hoje td { background: rgba(143, 196, 110, .18); }
+    .fluxo .grafico { position: relative; height: 260px; }
+    .fluxo .stat .val { white-space: nowrap; }
+    .fluxo td:first-child { white-space: nowrap; }
+    @media (max-width: 575.98px) {
+        .fluxo .stat { padding: .6rem .7rem; }
+        .fluxo .stat .val { font-size: 1.05rem; }
+        .fluxo table { font-size: .85rem; }
+        .fluxo .grafico { height: 220px; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="fluxo">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="mb-0">Fluxo de Caixa</h2>
+        <a href="{{ url_for('main.lancamentos') }}" class="btn btn-outline-secondary btn-sm">Ver lançamentos</a>
+    </div>
+
+    <form method="GET" class="row g-2 align-items-end mb-2">
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="inicio">De</label>
+            <input type="date" class="form-control form-control-sm" id="inicio" name="inicio" value="{{ inicio.isoformat() }}">
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="fim">Até</label>
+            <input type="date" class="form-control form-control-sm" id="fim" name="fim" value="{{ fim.isoformat() }}">
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="por">Agrupar</label>
+            <select name="por" id="por" class="form-select form-select-sm">
+                {% for k, v in granularidades.items() %}<option value="{{ k }}" {{ 'selected' if k == gran }}>{{ v }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-3"><button type="submit" class="btn btn-primary btn-sm w-100">Ver</button></div>
+    </form>
+    <div class="d-flex flex-wrap gap-1 mb-3">
+        {% for rot, a, b in atalhos %}
+        <a class="btn btn-sm {{ 'btn-success' if a == inicio and b == fim else 'btn-outline-success' }}"
+           href="{{ url_for('main.fluxo_caixa', inicio=a.isoformat(), fim=b.isoformat()) }}">{{ rot }}</a>
+        {% endfor %}
+    </div>
+
+    {% set t = d.totais %}
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Saldo hoje ({{ hoje.strftime('%d/%m') }})</div>
+            <div class="val {{ 'negativo' if d.saldo_hoje < 0 }}">{{ brl(d.saldo_hoje) }}</div>
+            <div class="sub">tudo que já foi pago e recebido</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot"><span class="marca" style="background: var(--ent)"></span>Entradas no período</div>
+            <div class="val">{{ brl(t.ent_real + t.ent_prev) }}</div>
+            <div class="sub">{{ brl(t.ent_real) }} recebido · {{ brl(t.ent_prev) }} a receber</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot"><span class="marca" style="background: var(--sai)"></span>Saídas no período</div>
+            <div class="val">{{ brl(t.sai_real + t.sai_prev) }}</div>
+            <div class="sub">{{ brl(t.sai_real) }} pago · {{ brl(t.sai_prev) }} a pagar</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Saldo previsto em {{ fim.strftime('%d/%m/%Y') }}</div>
+            <div class="val {{ 'negativo' if d.saldo_final < 0 }}">{{ brl(d.saldo_final) }}</div>
+            <div class="sub">começou o período com {{ brl(d.saldo_inicial) }}</div>
+        </div></div>
+    </div>
+
+    {% if d.menor and d.menor.saldo < 0 %}
+    <div class="alert alert-danger py-2">⚠ <strong>O caixa fica negativo</strong>: o pior momento é {{ d.menor.rotulo }}, com saldo de {{ brl(d.menor.saldo) }}.
+        Antecipe recebimentos ou renegocie vencimentos antes disso.</div>
+    {% endif %}
+    {% set ar, ap = d.atrasados.RECEBER, d.atrasados.PAGAR %}
+    {% if ar[0] or ap[0] %}
+    <div class="alert alert-warning py-2">⏰ Em atraso, contado como previsto para hoje:
+        {% if ar[0] %}<strong>{{ ar[0] }}</strong> a receber ({{ brl(ar[1]) }}){% endif %}{% if ar[0] and ap[0] %} e {% endif %}
+        {% if ap[0] %}<strong>{{ ap[0] }}</strong> a pagar ({{ brl(ap[1]) }}){% endif %}.
+        <a href="{{ url_for('main.lancamentos', status='aberto', data_inicio='2000-01-01', data_fim=hoje.isoformat()) }}">Ver atrasados</a>
+    </div>
+    {% endif %}
+
+    {% if not d.periodos or (t.ent_real + t.ent_prev + t.sai_real + t.sai_prev) == 0 %}
+    <p class="text-muted">Nenhum lançamento neste período. As vendas, as compras e os lançamentos do Financeiro aparecem aqui.</p>
+    {% else %}
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-7">
+            <h5 class="mb-1">Entradas e saídas</h5>
+            <div class="small text-muted mb-1">
+                <span class="marca" style="background: var(--ent)"></span>Entradas
+                <span class="marca ms-2" style="background: var(--ent); opacity: .4"></span>a receber
+                <span class="marca ms-3" style="background: var(--sai)"></span>Saídas
+                <span class="marca ms-2" style="background: var(--sai); opacity: .4"></span>a pagar
+            </div>
+            <div class="grafico"><canvas id="graf-es" role="img" aria-label="Entradas e saídas por período; os valores estão na tabela abaixo"></canvas></div>
+        </div>
+        <div class="col-12 col-lg-5">
+            <h5 class="mb-1">Saldo acumulado</h5>
+            <div class="small text-muted mb-1">linha cheia = realizado · tracejada = previsto</div>
+            <div class="grafico"><canvas id="graf-saldo" role="img" aria-label="Saldo acumulado ao fim de cada período; os valores estão na tabela abaixo"></canvas></div>
+        </div>
+    </div>
+
+    <div class="table-responsive mb-3">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Período</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Resultado</th><th class="num">Saldo</th></tr></thead>
+        <tbody>
+        <tr class="text-muted"><td>Saldo no início</td><td></td><td></td><td></td><td class="num">{{ brl(d.saldo_inicial) }}</td></tr>
+        {% for p in d.periodos %}
+        <tr class="{{ 'previsto' if p.futuro }} {{ 'hoje' if p.contem_hoje }}">
+            <td>{{ p.rotulo }}{% if p.contem_hoje %} <span class="badge bg-success">hoje</span>{% elif p.futuro %} <span class="small text-muted">previsto</span>{% endif %}</td>
+            <td class="num">{{ brl(p.entradas) if p.entradas else '—' }}</td>
+            <td class="num">{{ brl(p.saidas) if p.saidas else '—' }}</td>
+            <td class="num {{ 'negativo' if p.resultado < 0 }}">{{ brl(p.resultado) if p.entradas or p.saidas else '—' }}</td>
+            <td class="num fw-semibold {{ 'negativo' if p.saldo < 0 }}">{{ brl(p.saldo) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    <h5>Por conta</h5>
+    <div class="table-responsive mb-3">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Conta</th><th class="num">Recebido</th><th class="num">A receber</th><th class="num">Pago</th><th class="num">A pagar</th></tr></thead>
+        <tbody>
+        {% for c in d.contas %}
+        <tr>
+            <td>{{ c.conta }} <span class="small text-muted">· {{ c.grupo }}</span></td>
+            <td class="num">{{ brl(c.ent_real) if c.ent_real else '—' }}</td>
+            <td class="num">{{ brl(c.ent_prev) if c.ent_prev else '—' }}</td>
+            <td class="num">{{ brl(c.sai_real) if c.sai_real else '—' }}</td>
+            <td class="num">{{ brl(c.sai_prev) if c.sai_prev else '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot class="fw-semibold">
+        <tr><td>Total</td><td class="num">{{ brl(t.ent_real) }}</td><td class="num">{{ brl(t.ent_prev) }}</td>
+            <td class="num">{{ brl(t.sai_real) }}</td><td class="num">{{ brl(t.sai_prev) }}</td></tr>
+        </tfoot>
+    </table>
+    </div>
+    {% endif %}
+
+    <details {{ 'open' if not d.saldo_base }}>
+        <summary class="small">Saldo inicial: <strong>{{ brl(d.saldo_base) }}</strong>{% if not d.saldo_base %} — informe quanto você tinha em caixa/banco ao começar a usar o sistema{% endif %}</summary>
+        <form method="POST" class="row g-2 align-items-end mt-1">
+            <div class="col-8 col-md-4">
+                <label class="form-label small mb-1" for="saldo_inicial">Dinheiro em caixa + banco antes dos lançamentos</label>
+                <input type="text" name="saldo_inicial" id="saldo_inicial" class="form-control form-control-sm" inputmode="decimal"
+                       value="{{ ('%.2f'|format(d.saldo_base)).replace('.', ',') }}">
+            </div>
+            <div class="col-4 col-md-2"><button type="submit" class="btn btn-outline-success btn-sm w-100">Salvar</button></div>
+        </form>
+    </details>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if d.periodos %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+(() => {
+    const P = {{ d.periodos|map(attribute='rotulo')|list|tojson }};
+    const dados = {{ d.periodos|tojson }};
+    const css = getComputedStyle(document.querySelector('.fluxo'));
+    const cor = (v) => css.getPropertyValue(v).trim();
+    const fraco = (hex) => hex + '66';
+    const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const curto = (v) => Math.abs(v) >= 1000 ? 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : 'R$ ' + Math.round(v);
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.color = cor('--tinta-2');
+    const eixoX = { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 8 } };
+    const eixoY = { grid: { color: 'rgba(0,0,0,.06)' }, border: { display: false }, ticks: { callback: curto, maxTicksLimit: 6 } };
+    const dica = { mode: 'index', intersect: false, callbacks: { label: (c) => ` ${c.dataset.label}: ${brl(c.parsed.y)}` },
+                   filter: (i) => i.parsed.y !== 0 };
+
+    const barra = (label, campo, stack, c) => ({ label, stack, data: dados.map(p => p[campo]), backgroundColor: c,
+        borderRadius: 4, borderSkipped: 'bottom', borderColor: '#fff', borderWidth: { top: 2 }, maxBarThickness: 28 });
+    new Chart(document.getElementById('graf-es'), {
+        type: 'bar',
+        data: { labels: P, datasets: [
+            barra('Recebido', 'ent_real', 'e', cor('--ent')), barra('A receber', 'ent_prev', 'e', fraco(cor('--ent'))),
+            barra('Pago', 'sai_real', 's', cor('--sai')), barra('A pagar', 'sai_prev', 's', fraco(cor('--sai'))),
+        ] },
+        options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false }, tooltip: dica },
+            scales: { x: { ...eixoX, stacked: true }, y: { ...eixoY, stacked: true, beginAtZero: true } } },
+    });
+
+    // saldo: cheio até o período de hoje, tracejado depois
+    const iHoje = dados.findIndex(p => p.contem_hoje);
+    const corte = iHoje >= 0 ? iHoje : (dados[0] && dados[0].futuro ? -1 : dados.length - 1);
+    new Chart(document.getElementById('graf-saldo'), {
+        type: 'line',
+        data: { labels: P, datasets: [{
+            label: 'Saldo', data: dados.map(p => p.saldo), borderColor: cor('--saldo'), borderWidth: 2,
+            pointRadius: dados.length > 40 ? 0 : 3, pointHoverRadius: 5, pointBackgroundColor: cor('--saldo'), tension: 0,
+            segment: { borderDash: (ctx) => ctx.p0DataIndex >= corte ? [5, 4] : undefined },
+            fill: { target: { value: 0 }, above: 'rgba(44,80,32,.08)', below: 'rgba(179,38,30,.12)' },
+        }] },
+        options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false }, tooltip: { ...dica, filter: () => true } },
+            scales: { x: eixoX, y: { ...eixoY, grid: { color: (c) => c.tick.value === 0 ? 'rgba(0,0,0,.35)' : 'rgba(0,0,0,.06)' } } } },
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

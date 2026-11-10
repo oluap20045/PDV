@@ -1039,3 +1039,43 @@ def importar_catalogo_confirmar():
         return redirect(url_for('main.importar_catalogo'))
     flash(f'Catálogo importado: {criados} produto(s) novo(s), {atualizados} preço(s) atualizado(s).', 'success')
     return redirect(url_for('main.produtos'))
+
+
+@bp.route('/fluxo-de-caixa', methods=['GET', 'POST'])
+def fluxo_caixa():
+    from app import fluxo_caixa as fc
+    from app.models import Empresa
+    hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    if request.method == 'POST':
+        txt = (request.form.get('saldo_inicial') or '').strip()
+        txt = txt.replace('.', '').replace(',', '.') if ',' in txt else txt
+        try:
+            valor = round(float(txt or 0), 2)
+        except ValueError:
+            flash('Saldo inicial inválido.', 'danger')
+        else:
+            Empresa.atual().saldo_inicial = valor
+            db.session.commit()
+            flash('Saldo inicial salvo.', 'success')
+        return redirect(url_for('main.fluxo_caixa', **request.args))
+
+    inicio, fim = fc.periodo_padrao(hoje)
+    try:
+        if request.args.get('inicio'):
+            inicio = datetime.strptime(request.args['inicio'], '%Y-%m-%d').date()
+        if request.args.get('fim'):
+            fim = datetime.strptime(request.args['fim'], '%Y-%m-%d').date()
+    except ValueError:
+        flash('Data inválida; mostrando o período padrão.', 'warning')
+        inicio, fim = fc.periodo_padrao(hoje)
+    if fim < inicio:
+        inicio, fim = fim, inicio
+    if (fim - inicio).days > 3 * 366:
+        fim = inicio + timedelta(days=3 * 366)
+        flash('Período limitado a 3 anos.', 'warning')
+    gran = request.args.get('por')
+    if gran not in fc.GRANULARIDADES:
+        gran = fc.granularidade_auto(inicio, fim)
+    dados = fc.calcular(inicio, fim, gran, hoje)
+    return render_template('fluxo_caixa.html', d=dados, inicio=inicio, fim=fim, gran=gran, hoje=hoje,
+                           granularidades=fc.GRANULARIDADES, atalhos=fc.atalhos(hoje))

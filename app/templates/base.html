@@ -24,12 +24,19 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.clientes') }}">Clientes</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.estoque') }}">Controle de Estoque</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.vendas_realizadas') }}">Vendas Realizadas</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.lancamentos') }}">Financeiro</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.taxas') }}">Taxas de Cartão</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="menu-financeiro" role="button" data-bs-toggle="dropdown" aria-expanded="false">Financeiro</a>
+                        <ul class="dropdown-menu" aria-labelledby="menu-financeiro">
+                            <li><a class="dropdown-item" href="{{ url_for('main.fluxo_caixa') }}">Fluxo de Caixa</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.lancamentos') }}">A Pagar e a Receber</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.taxas') }}">Taxas de Cartão</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.gerenciar_contas') }}">Contas e Grupos</a></li>
+                        </ul>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.empresa') }}">Empresa</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.compras') }}">Compras</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.fornecedores') }}">Fornecedores</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('main.gerenciar_contas') }}">Contas e Grupos</a></li>
                 </ul>
                 <ul class="navbar-nav mb-2 mb-lg-0">
                     <li class="nav-item dropdown">
