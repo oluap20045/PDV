@@ -84,17 +84,22 @@ def _lancar_pagamentos(venda, cliente, linhas, quando, vencimento_fiado):
     Devolve (taxa_total, valor_no_fiado)."""
     conta_vendas = _conta_de_vendas()
     conta_taxas = None
+    from app.models import Empresa
+    prazo_cartao = max(0, Empresa.atual().prazo_cartao or 0)
     taxa_total = fiado = 0.0
     resumo = []
     for ln in linhas:
         pag = VendaPagamento(venda=venda, **ln)
         db.session.add(pag)
         a_prazo = ln['forma'] == FORMA_A_PRAZO
+        cartao = ln['forma'] in FORMAS_CARTAO
+        # cartão: a maquininha deposita em D+N (inclusive parcelado, se for antecipado); a baixa é automática
+        deposito = quando.date() + timedelta(days=prazo_cartao) if cartao else quando.date()
         pag.lancamento = Lancamento(
             descricao=f'Venda #{venda.id} - {cliente.nome} ({pag.descricao})'[:200],
             valor=ln['valor'], tipo='RECEBER', data_lancamento=quando,
-            data_vencimento=vencimento_fiado if a_prazo else quando.date(),
-            data_pagamento=None if a_prazo else quando, conta_id=conta_vendas.id)
+            data_vencimento=vencimento_fiado if a_prazo else deposito,
+            data_pagamento=None if (a_prazo or deposito > quando.date()) else quando, conta_id=conta_vendas.id)
         if a_prazo:
             fiado += ln['valor']
 
@@ -103,15 +108,31 @@ def _lancar_pagamentos(venda, cliente, linhas, quando, vencimento_fiado):
             pag.taxa_percentual = taxa.percentual
             pag.taxa_valor = round(ln['valor'] * taxa.percentual / 100, 2)
             conta_taxas = conta_taxas or _conta_por_nome(NOME_CONTA_TAXAS, '6. Despesas Comerciais')
-            pag.lancamento_taxa = Lancamento(   # a maquininha já desconta: despesa nasce paga
+            pag.lancamento_taxa = Lancamento(   # a maquininha desconta no depósito: sai junto, em D+N
                 descricao=f'Taxa {pag.descricao} {taxa.percentual:.2f}%'.replace('.', ',')[:180] + f' - Venda #{venda.id}',
-                valor=pag.taxa_valor, tipo='PAGAR', data_lancamento=quando, data_vencimento=quando.date(),
-                data_pagamento=quando, conta_id=conta_taxas.id)
+                valor=pag.taxa_valor, tipo='PAGAR', data_lancamento=quando, data_vencimento=deposito,
+                data_pagamento=quando if deposito <= quando.date() else None, conta_id=conta_taxas.id)
             taxa_total += pag.taxa_valor
         resumo.append(pag.descricao if len(linhas) == 1 else f'{pag.descricao} R$ {ln["valor"]:.2f}')
     venda.taxa_total = round(taxa_total, 2)
     venda.forma_pagamento = ' + '.join(resumo)[:120]
     return round(taxa_total, 2), round(fiado, 2)
+
+
+def baixar_depositos_cartao(hoje=None):
+    """Recebimentos de cartão (e suas taxas) cujo dia de depósito chegou: marca como pagos, sem o usuário fazer nada."""
+    hoje = hoje or datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    ids = set()
+    for coluna in (VendaPagamento.lancamento_id, VendaPagamento.lancamento_taxa_id):
+        vencidos = (Lancamento.query.join(VendaPagamento, coluna == Lancamento.id)
+                    .filter(VendaPagamento.forma.in_(FORMAS_CARTAO), Lancamento.data_pagamento.is_(None),
+                            Lancamento.data_vencimento <= hoje).all())
+        for lanc in vencidos:
+            lanc.data_pagamento = datetime.combine(lanc.data_vencimento, datetime.min.time()).replace(hour=9)
+            ids.add(lanc.id)
+    if ids:
+        db.session.commit()
+    return len(ids)
 
 
 def _codigo_barras_do_form():
@@ -402,6 +423,7 @@ def gerenciar_contas():
 
 @bp.route('/financeiro', methods=['GET', 'POST'])
 def lancamentos():
+    baixar_depositos_cartao()
     # Lógica de POST (criação de novo lançamento) continua a mesma
     if request.method == 'POST':
         descricao = request.form.get('descricao', '').strip()
@@ -881,6 +903,16 @@ def _taxa_conflitante(dados, ignorar_id=None):
 
 @bp.route('/taxas', methods=['GET', 'POST'])
 def taxas():
+    from app.models import Empresa
+    if request.method == 'POST' and 'prazo_cartao' in request.form:
+        prazo = request.form.get('prazo_cartao', type=int)
+        if prazo is None or not 0 <= prazo <= 60:
+            flash('Prazo inválido: use de 0 a 60 dias.', 'danger')
+        else:
+            Empresa.atual().prazo_cartao = prazo
+            db.session.commit()
+            flash(f'Prazo da maquininha: D+{prazo}. Vale para as próximas vendas.', 'success')
+        return redirect(url_for('main.taxas'))
     if request.method == 'POST':
         try:
             dados = _taxa_do_form()
@@ -904,7 +936,8 @@ def taxas():
     lista = TaxaPagamento.query.all()
     ordem_forma = {f: i for i, f in enumerate(FORMAS_PAGAMENTO)}
     lista.sort(key=lambda t: (t.bandeira is None, t.bandeira or '', ordem_forma.get(t.forma, 9), t.parcelas_de))
-    return render_template('taxas.html', taxas=lista, bandeiras=BANDEIRAS, max_parcelas=MAX_PARCELAS)
+    return render_template('taxas.html', taxas=lista, bandeiras=BANDEIRAS, max_parcelas=MAX_PARCELAS,
+                           prazo_cartao=Empresa.atual().prazo_cartao)
 
 
 @bp.route('/taxa/<int:id>/excluir', methods=['POST'])
@@ -1046,6 +1079,7 @@ def fluxo_caixa():
     from app import fluxo_caixa as fc
     from app.models import Empresa
     hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    baixar_depositos_cartao(hoje)
     if request.method == 'POST':
         txt = (request.form.get('saldo_inicial') or '').strip()
         txt = txt.replace('.', '').replace(',', '.') if ',' in txt else txt

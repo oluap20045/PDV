@@ -4,6 +4,15 @@
     <p class="text-muted">Cadastre quanto a maquininha cobra. Na venda, a taxa é calculada sozinha e lançada como despesa
         (conta <em>Taxas de Cartão/Maquininha</em>). Se uma bandeira não tiver taxa própria, vale a de <strong>Qualquer bandeira</strong>.</p>
 
+    <form method="POST" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <label for="prazo_cartao" class="mb-0">A maquininha deposita em <strong>D+</strong></label>
+        <input type="number" name="prazo_cartao" id="prazo_cartao" class="form-control form-control-sm" style="width: 5rem"
+               min="0" max="60" value="{{ prazo_cartao }}">
+        <span class="small text-muted">dias corridos (débito, crédito e parcelado). O valor e a taxa entram como
+            <em>a receber</em> nesse dia e a baixa é automática quando a data chega.</span>
+        <button type="submit" class="btn btn-sm btn-outline-success">Salvar</button>
+    </form>
+
     <div class="card mb-4">
         <div class="card-body">
             <form method="POST" class="row g-3 align-items-end" id="taxa-form">

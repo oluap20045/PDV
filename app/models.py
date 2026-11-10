@@ -224,6 +224,7 @@ class Empresa(db.Model):
     margem_lucro = db.Column(db.Float, nullable=False, default=30.0)   # % do preço, usada na sugestão de preço
     cadastro_aberto = db.Column(db.Boolean, nullable=False, default=True)   # "Criar conta" na tela de login
     saldo_inicial = db.Column(db.Float, nullable=False, default=0.0)   # dinheiro em caixa/banco antes dos lançamentos
+    prazo_cartao = db.Column(db.Integer, nullable=False, default=1)    # D+N: dias até a maquininha depositar
 
     @classmethod
     def atual(cls):
