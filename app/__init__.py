@@ -1,9 +1,13 @@
 # Local: app/__init__.py
 
+import mimetypes
+
 from flask import Flask
 from config import Config
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+
+mimetypes.add_type('application/wasm', '.wasm')   # leitor de código de barras (zxing)
 
 db = SQLAlchemy()
 migrate = Migrate()

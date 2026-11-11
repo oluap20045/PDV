@@ -156,3 +156,11 @@
 /* Login / criar conta / trocar senha */
 .tema-natureza .acesso-cartao { max-width: 420px; }
 .tema-natureza .acesso-folha { font-size: 2.6rem; line-height: 1; margin-bottom: .3rem; }
+
+/* leitor de código pela câmera (motor nativo) */
+.scanner-video { position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
+.scanner-video video { display: block; width: 100%; max-height: 60vh; object-fit: cover; }
+.scanner-mira { position: absolute; left: 7%; right: 7%; top: 30%; bottom: 30%; border: 2px solid rgba(255,255,255,.85);
+    border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
+.scanner-mira.qr { left: 20%; right: 20%; top: 15%; bottom: 15%; }
+#scanner-lanterna.active { background: #f5c542; border-color: #f5c542; color: #000; }
