@@ -92,9 +92,10 @@
                 <button type="button" id="add-item-btn" class="btn btn-success btn-sm">Adicionar Produto</button>
             </div>
             <div class="card-body">
+                <p class="small text-muted mb-1">Digite o <strong>código do catálogo</strong> (ex.: 1004038) ou o código de barras e aperte Enter: o produto é escolhido sozinho.</p>
                 <p>Caso o produto não esteja na lista, <a href="{{ url_for('main.produtos') }}" target="_blank">cadastre-o aqui</a> antes de continuar.</p>
                 <table class="table">
-                    <thead><tr><th>Produto</th><th>Quantidade</th><th>Custo Unit. (R$)</th><th>Ação</th></tr></thead>
+                    <thead><tr><th style="min-width: 150px">Código</th><th>Produto</th><th>Quantidade</th><th>Custo Unit. (R$)</th><th>Ação</th></tr></thead>
                     <tbody id="itens-tbody">
                         </tbody>
                 </table>
@@ -108,9 +109,16 @@
     <template id="item-template">
         <tr>
             <td>
+                <div class="input-group">
+                    <input type="text" class="form-control campo-codigo" inputmode="numeric" placeholder="Código" aria-label="Código do produto" autocomplete="off">
+                    <button type="button" class="btn btn-outline-secondary btn-camera-codigo" title="Ler código de barras pela câmera" aria-label="Ler código pela câmera">📷</button>
+                </div>
+                <div class="small codigo-aviso"></div>
+            </td>
+            <td>
                 <select name="produto_id" class="form-select" required>
-                    <option selected disabled>Selecione...</option>
-                    {% for p in produtos %}<option value="{{ p.id }}">{{ p.nome }}</option>{% endfor %}
+                    <option value="" selected disabled>Selecione...</option>
+                    {% for p in produtos %}<option value="{{ p.id }}">{{ p.nome }}{% if p.codigo_fornecedor %} ({{ p.codigo_fornecedor }}){% endif %}</option>{% endfor %}
                 </select>
             </td>
             <td><input type="number" name="quantidade" class="form-control" required></td>
@@ -229,11 +237,63 @@
 })();
 
 // ---------- lançamento manual
-document.getElementById('add-item-btn').addEventListener('click', () => {
-    const template = document.getElementById('item-template');
+// ---------- itens da compra manual: produto pelo código
+(() => {
+    const codigos = {{ codigos_js|tojson }};   // código do catálogo / de barras -> id do produto
     const tbody = document.getElementById('itens-tbody');
-    const clone = template.content.cloneNode(true);
-    tbody.appendChild(clone);
-});
+    const normaliza = (c) => (c || '').trim().replace(/\s+/g, '');
+
+    function aplicarCodigo(tr) {
+        const campo = tr.querySelector('.campo-codigo');
+        const aviso = tr.querySelector('.codigo-aviso');
+        const cod = normaliza(campo.value);
+        if (!cod) { aviso.textContent = ''; return false; }
+        const id = codigos[cod] ?? codigos[cod.replace(/^0+/, '')];
+        if (id === undefined) {
+            aviso.className = 'small codigo-aviso text-danger';
+            aviso.textContent = 'Código não encontrado';
+            return false;
+        }
+        tr.querySelector('select[name=produto_id]').value = String(id);
+        aviso.textContent = '';
+        tr.querySelector('input[name=quantidade]').focus();
+        return true;
+    }
+
+    function novaLinha() {
+        const clone = document.getElementById('item-template').content.cloneNode(true);
+        const tr = clone.querySelector('tr');
+        tbody.appendChild(clone);
+        tr.querySelector('.campo-codigo').focus();
+        return tr;
+    }
+
+    document.getElementById('add-item-btn').addEventListener('click', novaLinha);
+
+    tbody.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        const tr = ev.target.closest('tr');
+        if (!tr) return;
+        ev.preventDefault();                       // Enter não envia a compra pela metade
+        if (ev.target.classList.contains('campo-codigo')) { aplicarCodigo(tr); return; }
+        if (ev.target.name === 'quantidade') { tr.querySelector('input[name=custo]').focus(); return; }
+        if (ev.target.name === 'custo') {           // último campo: abre a próxima linha
+            if (tr === tbody.lastElementChild) novaLinha();
+            else tr.nextElementSibling.querySelector('.campo-codigo').focus();
+        }
+    });
+    tbody.addEventListener('change', (ev) => {
+        if (ev.target.classList.contains('campo-codigo')) aplicarCodigo(ev.target.closest('tr'));
+    });
+    tbody.addEventListener('click', (ev) => {
+        const b = ev.target.closest('.btn-camera-codigo');
+        if (!b || typeof PdvScanner === 'undefined') return;
+        const tr = b.closest('tr');
+        PdvScanner.abrir({ continuo: false, onLeitura: (codigo) => {
+            tr.querySelector('.campo-codigo').value = codigo;
+            aplicarCodigo(tr);
+        } });
+    });
+})();
 </script>
 {% endblock %}

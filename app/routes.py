@@ -705,8 +705,13 @@ def nova_compra():
     todas_as_contas = Conta.query.join(GrupoConta).order_by(GrupoConta.nome, Conta.nome).all()
     
     produtos_js = [{'id': p.id, 'nome': p.nome} for p in produtos]
+    codigos_js = {}
+    for p in produtos:                       # código de barras e código do catálogo levam ao produto
+        for c in (p.codigo_barras, p.codigo_fornecedor):
+            if c and c.strip():
+                codigos_js.setdefault(c.strip(), p.id)
     return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, preco=parametros_preco(),
-                           produtos_js=produtos_js, contas=todas_as_contas)
+                           produtos_js=produtos_js, codigos_js=codigos_js, contas=todas_as_contas)
 
 
 # ---------------------------------------------------------------- Clientes
