@@ -28,21 +28,21 @@
     </div>
     <input type="search" id="filtro-produtos" class="form-control mb-2" placeholder="Buscar por nome, código ou categoria">
     <div class="table-responsive">
-    <table class="table table-striped">
+    <table class="table table-striped" data-ordenavel>
         <thead>
-            <tr><th>ID</th><th>Código</th><th>Nome</th><th>Categoria</th><th>Custo médio</th><th>Preço Venda</th><th>Sugerido</th><th>Estoque</th><th>Ações</th></tr>
+            <tr><th data-ordem="num">ID</th><th data-ordem="texto">Código</th><th data-ordem="texto" data-ordem-inicial="asc">Nome</th><th data-ordem="texto">Categoria</th><th data-ordem="num">Custo médio</th><th data-ordem="num">Preço Venda</th><th data-ordem="num">Sugerido</th><th data-ordem="num">Estoque</th><th>Ações</th></tr>
             </thead>
         <tbody>
             {% for produto in produtos %}
             <tr class="linha-produto" data-busca="{{ (produto.nome ~ ' ' ~ (produto.codigo_barras or '') ~ ' ' ~ (produto.codigo_fornecedor or '') ~ ' ' ~ (produto.categoria or ''))|lower }}">
                 <td>{{ produto.id }}</td>
-                <td><small>{{ produto.codigo_barras or '—' }}{% if produto.codigo_fornecedor %}<br><span class="text-muted" title="Código do catálogo">cat. {{ produto.codigo_fornecedor }}</span>{% endif %}</small></td>
+                <td data-v="{{ produto.codigo_fornecedor or produto.codigo_barras or '' }}"><small>{{ produto.codigo_barras or '—' }}{% if produto.codigo_fornecedor %}<br><span class="text-muted" title="Código do catálogo">cat. {{ produto.codigo_fornecedor }}</span>{% endif %}</small></td>
                 <td>{{ produto.nome }}</td>
                 <td><small>{{ produto.categoria or '' }}</small></td>
-                <td>R$ {{ "%.2f"|format(produto.custo) }}</td>
-                <td>R$ {{ "%.2f"|format(produto.preco) }}</td>
+                <td data-v="{{ produto.custo }}">R$ {{ "%.2f"|format(produto.custo) }}</td>
+                <td data-v="{{ produto.preco }}">R$ {{ "%.2f"|format(produto.preco) }}</td>
                 {% set sug = sugestoes.get(produto.id) %}
-                <td class="text-nowrap">
+                <td class="text-nowrap" data-v="{{ sug or '' }}">
                     {% if sug %}R$ {{ "%.2f"|format(sug) }}
                         {% if produto.preco < sug - 0.005 %}<span class="badge bg-warning text-dark" title="Preço abaixo da margem desejada">abaixo</span>{% endif %}
                     {% else %}—{% endif %}

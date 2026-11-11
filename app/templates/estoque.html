@@ -1,36 +1,203 @@
 {% extends 'base.html' %}
-
+{% macro brl(v) %}R$ {{ ('{:,.2f}'.format(v)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endmacro %}
+{% macro inteiro(v) %}{{ ('{:,}'.format(v)).replace(',', '.') }}{% endmacro %}
+{% block head %}
+<style>
+    .estq { --barra: #2a78d6; --barra-fundo: #e6eef8; --tinta-2: #52514e; }
+    .estq .stat { border: 1px solid rgba(61, 110, 41, .18); border-radius: .75rem; padding: .8rem 1rem; background: #fff; height: 100%; }
+    .estq .stat .rot { font-size: .8rem; color: var(--tinta-2); }
+    .estq .stat .val { font-size: 1.45rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .estq .stat .sub { font-size: .78rem; color: var(--tinta-2); }
+    .estq .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .estq .grafico { position: relative; }
+    /* barra de estoque na linha: largura = quantidade ÷ maior estoque; traço = estoque mínimo */
+    .estq .barra { position: relative; height: 10px; background: var(--barra-fundo); border-radius: 0 4px 4px 0; min-width: 90px; }
+    .estq .barra > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--barra); border-radius: 0 4px 4px 0; }
+    .estq .barra > i { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #1f1f1d; }
+    .estq td.col-barra { width: 30%; }
+    .estq .filtros .btn { white-space: nowrap; }
+    .estq tr.sem td { color: #8a8985; }
+    @media (max-width: 575.98px) {
+        .estq .stat { padding: .6rem .7rem; }
+        .estq .stat .val { font-size: 1.05rem; }
+        .estq table { font-size: .85rem; }
+        .estq td.col-barra { min-width: 90px; }
+    }
+</style>
+{% endblock %}
 {% block content %}
-    <h2>Controle de Estoque</h2>
-
-    <div class="card bg-light mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ url_for('main.estoque') }}">
-                <div class="input-group">
-                    <input type="text" class="form-control" placeholder="Buscar por nome do produto..." name="search" value="{{ search or '' }}">
-                    <button class="btn btn-primary" type="submit">Buscar</button>
-                </div>
-            </form>
+<div class="estq">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">Controle de Estoque</h2>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('pedidos.ordens_compra') }}" class="btn btn-outline-secondary btn-sm">O que comprar</a>
+            <a href="{{ url_for('main.nova_compra') }}" class="btn btn-outline-secondary btn-sm">Lançar compra</a>
         </div>
     </div>
 
-    <table class="table table-hover">
+    {% set r = resumo %}
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Unidades em estoque</div>
+            <div class="val">{{ inteiro(r.unidades) }}</div>
+            <div class="sub">{{ r.produtos_com }} de {{ r.produtos }} produtos têm estoque</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Valor a preço de venda</div>
+            <div class="val">{{ brl(r.valor_venda) }}</div>
+            <div class="sub">o que entra se vender tudo</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Valor a custo</div>
+            <div class="val">{{ brl(r.valor_custo) }}</div>
+            <div class="sub">{% if r.sem_custo %}{{ r.sem_custo }} produto(s) sem custo lançado{% else %}dinheiro parado no estoque{% endif %}</div>
+        </div></div>
+        <div class="col-6 col-lg-3"><div class="stat">
+            <div class="rot">Abaixo do mínimo</div>
+            <div class="val">{{ r.baixo }} <span class="fs-6 fw-normal">produto(s)</span></div>
+            <div class="sub">{{ r.sem }} sem estoque{% if r.reservado %} · {{ r.reservado }} un. reservadas p/ pedidos{% endif %}</div>
+        </div></div>
+    </div>
+
+    {% if categorias %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="mb-1">Unidades em estoque por categoria</h6>
+            <p class="small text-muted mb-2">Passe o mouse para ver quantos produtos e o valor a preço de venda.</p>
+            <div class="grafico" style="height: {{ [categorias|length * 30 + 30, 120]|max }}px"><canvas id="graf-cat" role="img"
+                 aria-label="Unidades em estoque por categoria"></canvas></div>
+            <details class="mt-2 small"><summary>Ver em tabela</summary>
+                <table class="table table-sm mt-2 mb-0"><thead><tr><th>Categoria</th><th class="num">Produtos</th><th class="num">Unidades</th><th class="num">Valor venda</th></tr></thead>
+                <tbody>{% for c in categorias %}<tr><td>{{ c.categoria }}</td><td class="num">{{ c.produtos }}</td><td class="num">{{ c.unidades }}</td><td class="num">{{ brl(c.valor_venda) }}</td></tr>{% endfor %}</tbody></table>
+            </details>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+        <input type="search" id="busca" class="form-control form-control-sm" style="max-width: 280px"
+               placeholder="Buscar por nome, código ou categoria" value="{{ busca }}" aria-label="Buscar produto">
+        <div class="d-flex flex-wrap gap-1 filtros" role="group" aria-label="Filtrar">
+            {% for k, rot in [('todos', 'Todos'), ('com', 'Com estoque'), ('baixo', 'Abaixo do mínimo'), ('sem', 'Sem estoque')] %}
+            <button type="button" class="btn btn-sm {{ 'btn-success' if filtro == k else 'btn-outline-success' }}" data-ver="{{ k }}">{{ rot }}</button>
+            {% endfor %}
+        </div>
+        <span class="small text-muted ms-auto" id="contagem"></span>
+    </div>
+
+    <div class="table-responsive">
+    <table class="table table-sm align-middle" data-ordenavel>
         <thead>
             <tr>
-                {% set next_order = 'desc' if order == 'asc' else 'asc' %}
-                <th><a href="{{ url_for('main.estoque', sort_by='nome', order=next_order if sort_by == 'nome' else 'asc', search=search) }}">Nome do Produto {% if sort_by == 'nome' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
-                <th><a href="{{ url_for('main.estoque', sort_by='quantidade', order=next_order if sort_by == 'quantidade' else 'asc', search=search) }}">Qtd. Disponível {% if sort_by == 'quantidade' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
-                <th><a href="{{ url_for('main.estoque', sort_by='estoque_minimo', order=next_order if sort_by == 'estoque_minimo' else 'asc', search=search) }}">Estoque Mínimo {% if sort_by == 'estoque_minimo' %}{{ '▲' if order == 'asc' else '▼' }}{% endif %}</a></th>
+                <th data-ordem="texto">Produto</th>
+                <th data-ordem="num" data-ordem-inicial="desc" class="num">Estoque</th>
+                <th class="col-barra"><span class="visually-hidden">Barra do estoque</span></th>
+                <th data-ordem="num" class="num" title="Reservado para pedidos em aberto">Reservado</th>
+                <th data-ordem="num" class="num">Mínimo</th>
+                <th data-ordem="num" class="num">Valor custo</th>
+                <th data-ordem="num" class="num">Valor venda</th>
             </tr>
         </thead>
         <tbody>
-            {% for produto in produtos %}
-            <tr class="{{ 'table-warning' if produto.quantidade <= produto.estoque_minimo and produto.estoque_minimo > 0 else '' }}">
-                <td>{{ produto.nome }}</td>
-                <td>{{ produto.quantidade }}</td>
-                <td>{{ produto.estoque_minimo }}</td>
+        {% for l in linhas %}
+            {% set p = l.p %}
+            <tr class="linha-estq {{ 'sem' if l.situacao == 'sem' }}" data-situacao="{{ l.situacao }}"
+                data-busca="{{ (p.nome ~ ' ' ~ (p.codigo_barras or '') ~ ' ' ~ (p.codigo_fornecedor or '') ~ ' ' ~ (p.categoria or ''))|lower }}">
+                <td data-v="{{ p.nome }}">
+                    <a href="{{ url_for('main.editar_produto', id=p.id) }}" class="text-reset text-decoration-none">{{ p.nome }}</a>
+                    <div class="small text-muted">{% if p.codigo_fornecedor %}cód. {{ p.codigo_fornecedor }}{% endif %}{% if p.codigo_fornecedor and p.categoria %} · {% endif %}{{ p.categoria or '' }}
+                        {% if l.situacao == 'baixo' %}<span class="badge bg-warning text-dark ms-1">⚠ abaixo do mínimo</span>
+                        {% elif l.situacao == 'sem' %}<span class="badge bg-light text-dark border ms-1">sem estoque</span>{% endif %}
+                    </div>
+                </td>
+                <td class="num fw-bold" data-v="{{ l.qtd }}">{{ l.qtd }}</td>
+                <td class="col-barra">
+                    {% if r.maximo %}
+                    <div class="barra" title="{{ l.qtd }} un.{% if p.estoque_minimo %} · mínimo {{ p.estoque_minimo }}{% endif %}">
+                        <span style="width: {{ (100 * l.qtd / r.maximo)|round(1) }}%"></span>
+                        {% if p.estoque_minimo and p.estoque_minimo <= r.maximo %}<i style="left: calc({{ (100 * p.estoque_minimo / r.maximo)|round(1) }}% - 1px)" aria-hidden="true"></i>{% endif %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td class="num" data-v="{{ l.reservado }}">{{ l.reservado or '—' }}{% if l.reservado %}<div class="small text-muted">livre {{ l.livre }}</div>{% endif %}</td>
+                <td class="num" data-v="{{ p.estoque_minimo }}">{{ p.estoque_minimo or '—' }}</td>
+                <td class="num" data-v="{{ l.valor_custo }}">{{ brl(l.valor_custo) if l.qtd else '—' }}</td>
+                <td class="num" data-v="{{ l.valor_venda }}">{{ brl(l.valor_venda) if l.qtd else '—' }}</td>
             </tr>
-            {% endfor %}
+        {% endfor %}
         </tbody>
     </table>
+    </div>
+    <p class="small text-muted">A barra azul mostra o estoque comparado ao produto com mais unidades ({{ r.maximo }}); o traço preto é o estoque mínimo.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    // filtros e busca
+    let ver = {{ filtro|tojson }};
+    const busca = document.getElementById('busca');
+    const linhas = [...document.querySelectorAll('tr.linha-estq')];
+    function aplicar() {
+        const q = busca.value.trim().toLowerCase();
+        let n = 0;
+        for (const tr of linhas) {
+            const s = tr.dataset.situacao;
+            const okVer = ver === 'todos' || (ver === 'com' ? s !== 'sem' : s === ver);
+            const mostra = okVer && (!q || tr.dataset.busca.includes(q));
+            tr.hidden = !mostra;
+            if (mostra) n++;
+        }
+        document.getElementById('contagem').textContent = `${n} produto(s)`;
+        try { localStorage.setItem('pdv_estoque_ver', ver); } catch (e) { /* ok */ }
+    }
+    if (!new URLSearchParams(location.search).has('ver')) {
+        try { ver = localStorage.getItem('pdv_estoque_ver') || ver; } catch (e) { /* ok */ }
+    }
+    document.querySelectorAll('[data-ver]').forEach((b) => {
+        b.classList.toggle('btn-success', b.dataset.ver === ver);
+        b.classList.toggle('btn-outline-success', b.dataset.ver !== ver);
+        b.addEventListener('click', () => {
+            ver = b.dataset.ver;
+            document.querySelectorAll('[data-ver]').forEach((x) => {
+                x.classList.toggle('btn-success', x === b); x.classList.toggle('btn-outline-success', x !== b);
+            });
+            aplicar();
+        });
+    });
+    busca.addEventListener('input', aplicar);
+    aplicar();
+})();
+</script>
+{% if categorias %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+(() => {
+    const C = {{ categorias|tojson }};
+    const css = getComputedStyle(document.querySelector('.estq'));
+    const brl = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.color = css.getPropertyValue('--tinta-2').trim();
+    new Chart(document.getElementById('graf-cat'), {
+        type: 'bar',
+        data: { labels: C.map(c => c.categoria), datasets: [{
+            label: 'Unidades', data: C.map(c => c.unidades), backgroundColor: css.getPropertyValue('--barra').trim(),
+            borderRadius: 4, borderSkipped: 'start', maxBarThickness: 18,
+        }] },
+        options: {
+            indexAxis: 'y', maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: {
+                label: (c) => ` ${c.parsed.x} un. em ${C[c.dataIndex].produtos} produto(s)`,
+                afterLabel: (c) => ` ${brl(C[c.dataIndex].valor_venda)} a preço de venda`,
+            } } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.06)' }, border: { display: false }, ticks: { precision: 0, maxTicksLimit: 6 } },
+                y: { grid: { display: false } },
+            },
+        },
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -182,37 +182,52 @@ def produtos():
 # ALTERAÇÃO: troque @app.route por @bp.route
 @bp.route('/estoque')
 def estoque():
-    # Parâmetros da URL para busca e ordenação
-    search_term = request.args.get('search', '')
-    sort_by = request.args.get('sort_by', 'nome') # Padrão: ordenar por nome
-    order = request.args.get('order', 'asc')     # Padrão: ascendente
+    """Painel de estoque: resumo, gráfico por categoria e lista (maior estoque primeiro)."""
+    from app.pedidos import alocar
+    produtos = Produto.query.all()
+    pedidos, situacao = alocar()
+    reservado = {}
+    for ped in pedidos:
+        for it in ped.itens:
+            reservado[it.produto_id] = reservado.get(it.produto_id, 0) + situacao[it.id][0]
 
-    query = Produto.query
+    linhas = []
+    for p in produtos:
+        qtd = max(p.quantidade or 0, 0)
+        res = reservado.get(p.id, 0)
+        if qtd <= 0:
+            situacao_p = 'sem'
+        elif p.estoque_minimo and qtd <= p.estoque_minimo:
+            situacao_p = 'baixo'
+        else:
+            situacao_p = 'ok'
+        linhas.append({'p': p, 'qtd': qtd, 'reservado': res, 'livre': qtd - res, 'situacao': situacao_p,
+                       'valor_custo': round(qtd * (p.custo or 0), 2), 'valor_venda': round(qtd * (p.preco or 0), 2)})
+    linhas.sort(key=lambda l: (-l['qtd'], l['p'].nome.lower()))
 
-    # Aplicar filtro de busca se houver
-    if search_term:
-        query = query.filter(Produto.nome.ilike(f'%{search_term}%'))
-
-    # Validar colunas permitidas para ordenação para segurança
-    allowed_sort_columns = ['nome', 'quantidade', 'estoque_minimo']
-    if sort_by not in allowed_sort_columns:
-        sort_by = 'nome'
-
-    # Aplicar ordenação
-    if order == 'desc':
-        query = query.order_by(getattr(Produto, sort_by).desc())
-    else:
-        query = query.order_by(getattr(Produto, sort_by).asc())
-
-    lista_produtos = query.all()
-
-    return render_template(
-        'estoque.html',
-        produtos=lista_produtos,
-        search=search_term,
-        sort_by=sort_by,
-        order=order
-    )
+    com = [l for l in linhas if l['qtd'] > 0]
+    resumo = {
+        'unidades': sum(l['qtd'] for l in com),
+        'produtos_com': len(com),
+        'produtos': len(linhas),
+        'valor_custo': round(sum(l['valor_custo'] for l in com), 2),
+        'valor_venda': round(sum(l['valor_venda'] for l in com), 2),
+        'sem': sum(1 for l in linhas if l['situacao'] == 'sem'),
+        'baixo': sum(1 for l in linhas if l['situacao'] == 'baixo'),
+        'reservado': sum(l['reservado'] for l in linhas),
+        'sem_custo': sum(1 for l in com if not l['p'].custo),
+        'maximo': max([l['qtd'] for l in linhas] or [0]),
+    }
+    cats = {}
+    for l in com:
+        c = cats.setdefault(l['p'].categoria or 'Sem categoria', {'categoria': l['p'].categoria or 'Sem categoria',
+                                                                    'unidades': 0, 'valor_venda': 0.0, 'produtos': 0})
+        c['unidades'] += l['qtd']
+        c['valor_venda'] = round(c['valor_venda'] + l['valor_venda'], 2)
+        c['produtos'] += 1
+    categorias = sorted(cats.values(), key=lambda c: -c['unidades'])
+    return render_template('estoque.html', linhas=linhas, resumo=resumo, categorias=categorias,
+                           filtro=request.args.get('ver', 'todos'), busca=request.args.get('search', ''))
 
 # Rota para a Tela de Venda (PDV)
 # ALTERAÇÃO: troque @app.route por @bp.route

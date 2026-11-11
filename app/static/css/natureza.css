@@ -165,3 +165,9 @@
 .scanner-mira.qr { left: 20%; right: 20%; top: 15%; bottom: 15%; }
 #scanner-lanterna.active { background: #f5c542; border-color: #f5c542; color: #000; }
 .scanner-video video.espelhado { transform: scaleX(-1); }
+
+/* títulos de tabela ordenáveis (tabela.js) */
+th[data-ordem] .btn-ordenar { all: unset; cursor: pointer; font-weight: inherit; white-space: nowrap; }
+th[data-ordem] .btn-ordenar:hover { text-decoration: underline; }
+th[data-ordem] .btn-ordenar:focus-visible { outline: 2px solid #2a78d6; outline-offset: 2px; border-radius: 2px; }
+th[data-ordem] .seta { font-size: .7em; }

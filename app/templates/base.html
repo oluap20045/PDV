@@ -110,6 +110,7 @@
     <script src="{{ url_for('static', filename='js/html5-qrcode.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
     <script src="{{ url_for('static', filename='js/comprovante.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/tabela.js') }}"></script>
     {% if preco %}<script>window.PRECO = {{ preco|tojson }};</script>{% endif %}
     <script src="{{ url_for('static', filename='js/preco.js') }}"></script>
     {% block scripts %}{% endblock %}
