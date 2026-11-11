@@ -8,7 +8,7 @@ from app import db
 from flask_login import current_user
 from app.models import Produto, Venda, ItemVenda
 from app.models import GrupoConta, Conta, Lancamento, Fornecedor 
-from app.models import Compra, CompraItem, Cliente
+from app.models import Compra, CompraItem, Cliente, Pedido
 from app.models import NOME_CONTA_VENDAS, FORMAS_PAGAMENTO, FORMA_A_PRAZO
 from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRAS, MAX_PARCELAS,
                         TaxaPagamento, VendaPagamento, Empresa)
@@ -252,20 +252,34 @@ def venda_pdv():
         db.session.add(nova_venda)
         db.session.flush()
 
+        pedido = None
+        if request.form.get('pedido_id'):
+            pedido = db.session.get(Pedido, request.form.get('pedido_id', type=int) or 0)
+            if pedido is None or pedido.status != 'aberto':
+                db.session.rollback()
+                flash('Esse pedido não está mais em aberto (já foi entregue ou cancelado).', 'danger')
+                return redirect(url_for('pedidos.pedidos'))
+
         try:
             for item_str in itens_carrinho:
-                produto_id, quantidade_vendida = item_str.split('|')
-                quantidade_vendida = int(quantidade_vendida)
+                partes = item_str.split('|')
+                produto_id, quantidade_vendida = partes[0], int(partes[1])
                 produto = db.session.get(Produto, int(produto_id))
                 if produto is None:
                     raise Exception('produto não encontrado')
+                if quantidade_vendida <= 0:
+                    raise Exception(f'quantidade inválida para {produto.nome}')
+                # preço do carrinho (promoção / desconto); sem preço = preço do cadastro
+                preco = round(float(partes[2]), 2) if len(partes) > 2 and partes[2] else produto.preco
+                if preco < 0:
+                    raise Exception(f'preço inválido para {produto.nome}')
                 if produto.quantidade < quantidade_vendida:
                     raise Exception(f'Estoque insuficiente para o produto {produto.nome}')
                 produto.quantidade -= quantidade_vendida
-                total_venda += produto.preco * quantidade_vendida
+                total_venda += preco * quantidade_vendida
                 db.session.add(ItemVenda(
                     venda_id=nova_venda.id, produto_id=produto.id, quantidade=quantidade_vendida,
-                    preco_unitario=produto.preco,
+                    preco_unitario=preco, preco_tabela=produto.preco,
                     custo_unitario=produto.custo,   # custo do momento da venda
                 ))
             total_venda = round(total_venda, 2)
@@ -276,6 +290,8 @@ def venda_pdv():
                 raise Exception(f'as formas de pagamento somam R$ {pago:.2f}, mas a venda é de R$ {total_venda:.2f}')
 
             taxa_total, fiado_total = _lancar_pagamentos(nova_venda, cliente, pagamentos, data_da_venda, vencimento_fiado)
+            if pedido is not None:
+                pedido.status, pedido.venda_id = 'entregue', nova_venda.id
             db.session.commit()
 
             msg = f'Venda #{nova_venda.id} de R$ {total_venda:.2f} para {cliente.nome} finalizada ({nova_venda.forma_pagamento})'
@@ -283,12 +299,20 @@ def venda_pdv():
                 msg += f' — taxa de cartão R$ {taxa_total:.2f} lançada como despesa'
             if fiado_total:
                 msg += f' — R$ {fiado_total:.2f} no fiado, a receber em {vencimento_fiado.strftime("%d/%m/%Y")}'
+            if pedido is not None:
+                msg += f' — pedido #{pedido.id} entregue'
+            desconto = round(sum((i.preco_tabela - i.preco_unitario) * i.quantidade for i in nova_venda.itens
+                                 if i.preco_tabela is not None), 2)
+            if desconto > 0.009:
+                msg += f' — desconto de R$ {desconto:.2f}'
             flash(msg + '.', 'success')
             return redirect(url_for('main.venda_pdv', ultima=nova_venda.id))
 
         except Exception as e:
             db.session.rollback()
             flash(f'Erro ao processar a venda: {e}', 'danger')
+            if pedido is not None:
+                return redirect(url_for('main.venda_pdv', pedido=pedido.id))
             return redirect(url_for('main.venda_pdv', cliente=cliente.id))
 
         return redirect(url_for('main.venda_pdv'))
@@ -301,7 +325,17 @@ def venda_pdv():
     if not any(c.id == selecionado for c in clientes):
         selecionado = padrao.id
     ultima = db.session.get(Venda, request.args.get('ultima', type=int) or 0)
-    return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima,
+    # ?pedido=<id>: entrega de um pedido — carrinho já vem com os itens e preços combinados
+    pedido, pedido_js = None, None
+    if request.args.get('pedido', type=int):
+        pedido = db.session.get(Pedido, request.args.get('pedido', type=int))
+        if pedido is None or pedido.status != 'aberto':
+            flash('Esse pedido não está mais em aberto.', 'warning')
+            return redirect(url_for('pedidos.pedidos'))
+        selecionado = pedido.cliente_id
+        pedido_js = {'id': pedido.id, 'itens': [{'id': str(it.produto_id), 'qtd': it.quantidade, 'preco': it.preco_unitario}
+                                                for it in pedido.itens]}
+    return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima, pedido=pedido, pedido_js=pedido_js,
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
                            formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,
@@ -689,7 +723,13 @@ def nova_compra():
 
             # 5. Vincula o lançamento à compra
             nova_compra_obj.lancamento_id = novo_lancamento.id
-            
+
+            # 6. Veio de uma ordem de compra: ela fica como recebida
+            if request.form.get('ordem_id'):
+                from app.pedidos import baixar_ordem
+                db.session.flush()
+                baixar_ordem(request.form.get('ordem_id', type=int), nova_compra_obj)
+
             db.session.commit()
             flash('Compra lançada com sucesso e conta a pagar gerada!', 'success')
             return redirect(url_for('main.compras'))
@@ -710,8 +750,10 @@ def nova_compra():
         for c in (p.codigo_barras, p.codigo_fornecedor):
             if c and c.strip():
                 codigos_js.setdefault(c.strip(), p.id)
+    from app.pedidos import ordem_para_compra
+    ordem = ordem_para_compra(request.args.get('ordem', type=int))
     return render_template('nova_compra.html', fornecedores=fornecedores, produtos=produtos, preco=parametros_preco(),
-                           produtos_js=produtos_js, codigos_js=codigos_js, contas=todas_as_contas)
+                           produtos_js=produtos_js, codigos_js=codigos_js, contas=todas_as_contas, ordem=ordem)
 
 
 # ---------------------------------------------------------------- Clientes

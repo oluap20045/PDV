@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">{{ 'Pedido #%d'|format(pedido.id) if pedido else 'Novo pedido' }}</h2>
+        <a href="{{ url_for('pedidos.pedidos') }}" class="btn btn-outline-secondary btn-sm">Voltar aos pedidos</a>
+    </div>
+
+    <form method="POST" id="form-pedido">
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label for="cliente-busca" class="form-label">Cliente</label>
+                <input type="search" id="cliente-busca" class="form-control form-control-sm mb-1" placeholder="Buscar por nome ou CPF..." autocomplete="off">
+                <div class="input-group">
+                    <select name="cliente_id" id="cliente_id" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        {% for c in clientes %}
+                        <option value="{{ c.id }}" data-busca="{{ (c.nome ~ ' ' ~ (c.cpf or ''))|lower }}" {{ 'selected' if c.id == dados.cliente_id }}>
+                            {{ c.nome }}{% if c.cpf %} — {{ c.cpf|cpf }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                    <a href="{{ url_for('main.clientes') }}" target="_blank" class="btn btn-outline-secondary" title="Cadastrar cliente (abre em outra aba)">+ Novo</a>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <label for="previsao" class="form-label">Entregar até</label>
+                <input type="date" name="previsao" id="previsao" class="form-control" value="{{ dados.previsao }}">
+            </div>
+            <div class="col-12 col-md-3">
+                <label for="observacao" class="form-label">Observação</label>
+                <input type="text" name="observacao" id="observacao" class="form-control" maxlength="255" value="{{ dados.observacao }}" placeholder="ex.: presente, embrulhar">
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                Produtos
+                <button type="button" id="add-item" class="btn btn-success btn-sm">+ Produto</button>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">Pode pedir <strong>qualquer produto</strong>, mesmo sem estoque: o que faltar vai para a lista de compras.
+                    Digite o código do catálogo ou de barras e Enter. No preço dá para digitar <strong>10%</strong> para dar desconto.</p>
+                <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th style="min-width: 120px">Código</th><th style="min-width: 220px">Produto</th><th style="width: 90px">Qtd</th><th style="width: 130px">Preço un.</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+                    <tbody id="itens"></tbody>
+                </table>
+                </div>
+                <div class="text-end fs-5">Total: <strong id="total">R$ 0,00</strong></div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Salvar pedido</button>
+    </form>
+
+    <template id="tpl-item">
+        <tr>
+            <td><input type="text" class="form-control form-control-sm campo-codigo" inputmode="numeric" placeholder="Código" autocomplete="off" aria-label="Código">
+                <div class="small codigo-aviso"></div></td>
+            <td>
+                <select name="produto_id" class="form-select form-select-sm">
+                    <option value="">Selecione...</option>
+                    {% for p in produtos %}<option value="{{ p.id }}">{{ p.nome }}{% if p.codigo_fornecedor %} ({{ p.codigo_fornecedor }}){% endif %}</option>{% endfor %}
+                </select>
+                <div class="small text-muted info-estoque"></div>
+            </td>
+            <td><input type="number" name="quantidade" class="form-control form-control-sm" min="1" value="1" required></td>
+            <td><input type="text" name="preco" class="form-control form-control-sm" inputmode="decimal" placeholder="0,00"></td>
+            <td class="text-end text-nowrap subtotal"></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm remover" title="Remover">✕</button></td>
+        </tr>
+    </template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const PRODUTOS = {{ produtos_js|tojson }};
+    const CODIGOS = {{ codigos|tojson }};
+    const INICIAIS = {{ itens|tojson }};
+    const tbody = document.getElementById('itens');
+    const num = (t) => { t = String(t || '').replace('R$', '').trim(); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+                         const v = parseFloat(t); return isNaN(v) ? NaN : v; };
+    const fmt = (v) => v.toFixed(2).replace('.', ',');
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    function atualizar(tr) {
+        const sel = tr.querySelector('select[name=produto_id]');
+        const p = PRODUTOS[sel.value];
+        const info = tr.querySelector('.info-estoque');
+        const preco = tr.querySelector('input[name=preco]');
+        if (p) {
+            info.innerHTML = p.estoque > 0 ? `estoque: ${p.estoque} · tabela ${brl(p.preco)}`
+                                           : `<span class="text-danger">sem estoque</span> · tabela ${brl(p.preco)}`;
+            const t = preco.value.trim();
+            if (t.endsWith('%')) {            // "10%" = desconto sobre o preço de tabela
+                const pct = num(t.slice(0, -1));
+                if (!isNaN(pct)) preco.value = fmt(Math.max(p.preco * (1 - pct / 100), 0));
+            }
+        } else info.textContent = '';
+        const q = parseInt(tr.querySelector('input[name=quantidade]').value) || 0;
+        const v = num(preco.value);
+        tr.querySelector('.subtotal').textContent = p && !isNaN(v) ? brl(q * v) : '';
+        total();
+    }
+    function total() {
+        let t = 0;
+        tbody.querySelectorAll('tr').forEach((tr) => {
+            const v = num(tr.querySelector('input[name=preco]').value);
+            if (!isNaN(v)) t += v * (parseInt(tr.querySelector('input[name=quantidade]').value) || 0);
+        });
+        document.getElementById('total').textContent = brl(t);
+    }
+    function linha(item = {}) {
+        const clone = document.getElementById('tpl-item').content.cloneNode(true);
+        const tr = clone.querySelector('tr');
+        tbody.appendChild(clone);
+        if (item.produto_id) {
+            tr.querySelector('select').value = String(item.produto_id);
+            const p = PRODUTOS[item.produto_id];
+            if (p) tr.querySelector('.campo-codigo').value = p.codigo;
+        }
+        if (item.quantidade) tr.querySelector('input[name=quantidade]').value = item.quantidade;
+        if (item.preco !== undefined && item.preco !== null) tr.querySelector('input[name=preco]').value = item.preco;
+        atualizar(tr);
+        return tr;
+    }
+    function porCodigo(tr) {
+        const campo = tr.querySelector('.campo-codigo');
+        const aviso = tr.querySelector('.codigo-aviso');
+        const c = campo.value.trim().replace(/\s+/g, '');
+        if (!c) { aviso.textContent = ''; return; }
+        const id = CODIGOS[c] ?? CODIGOS[c.replace(/^0+/, '')];
+        if (id === undefined) { aviso.className = 'small codigo-aviso text-danger'; aviso.textContent = 'Código não encontrado'; return; }
+        aviso.textContent = '';
+        escolher(tr, id);
+        tr.querySelector('input[name=quantidade]').select();
+    }
+    function escolher(tr, id) {
+        tr.querySelector('select').value = String(id);
+        tr.querySelector('input[name=preco]').value = fmt(PRODUTOS[id].preco);
+        tr.querySelector('.campo-codigo').value = PRODUTOS[id].codigo;
+        atualizar(tr);
+    }
+
+    document.getElementById('add-item').addEventListener('click', () => linha().querySelector('.campo-codigo').focus());
+    tbody.addEventListener('change', (ev) => {
+        const tr = ev.target.closest('tr');
+        if (ev.target.classList.contains('campo-codigo')) porCodigo(tr);
+        else if (ev.target.name === 'produto_id') { if (ev.target.value) escolher(tr, ev.target.value); else atualizar(tr); }
+        else atualizar(tr);
+    });
+    tbody.addEventListener('input', (ev) => { if (ev.target.name === 'quantidade') atualizar(ev.target.closest('tr')); });
+    tbody.addEventListener('click', (ev) => {
+        if (ev.target.closest('.remover')) { ev.target.closest('tr').remove(); total(); }
+    });
+    tbody.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        const tr = ev.target.closest('tr');
+        ev.preventDefault();
+        if (ev.target.classList.contains('campo-codigo')) porCodigo(tr);
+        else if (ev.target.name === 'quantidade') tr.querySelector('input[name=preco]').select();
+        else if (ev.target.name === 'preco') {
+            atualizar(tr);
+            if (tr === tbody.lastElementChild) linha().querySelector('.campo-codigo').focus();
+        }
+    });
+
+    // busca de cliente
+    const sel = document.getElementById('cliente_id');
+    document.getElementById('cliente-busca').addEventListener('input', (ev) => {
+        const termo = ev.target.value.toLowerCase().replace(/[.\-]/g, '');
+        let primeiro = null;
+        for (const opt of sel.options) {
+            if (!opt.value) continue;
+            const bate = !termo || opt.dataset.busca.replace(/[.\-]/g, '').includes(termo);
+            opt.hidden = !bate;
+            if (bate && !primeiro) primeiro = opt;
+        }
+        if (primeiro && (!sel.value || sel.selectedOptions[0].hidden)) primeiro.selected = true;
+    });
+
+    const form = document.getElementById('form-pedido');
+    form.addEventListener('submit', (ev) => {
+        tbody.querySelectorAll('tr').forEach(atualizar);
+        const linhas = [...tbody.querySelectorAll('tr')].filter((tr) => tr.querySelector('select').value);
+        if (!linhas.length) { ev.preventDefault(); alert('Inclua pelo menos um produto.'); return; }
+        for (const tr of linhas) {
+            const v = num(tr.querySelector('input[name=preco]').value);
+            if (isNaN(v) || v < 0) { ev.preventDefault(); tr.querySelector('input[name=preco]').focus(); alert('Preço inválido.'); return; }
+        }
+        // linhas sem produto não vão
+        tbody.querySelectorAll('tr').forEach((tr) => { if (!tr.querySelector('select').value) tr.remove(); });
+        form.querySelector('button[type=submit]').disabled = true;
+    });
+
+    if (INICIAIS.length) INICIAIS.forEach(linha); else linha();
+})();
+</script>
+{% endblock %}

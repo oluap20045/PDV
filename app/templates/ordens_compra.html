@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">Ordens de compra</h2>
+        <a href="{{ url_for('pedidos.pedidos') }}" class="btn btn-outline-secondary btn-sm">Ver pedidos</a>
+    </div>
+
+    <h5>O que precisa comprar</h5>
+    {% if linhas %}
+    <p class="small text-muted">Falta = o que os pedidos em aberto pedem além do estoque. Já desconta o que está em ordens abertas.
+        Produtos abaixo do <strong>estoque mínimo</strong> aparecem como sugestão, desmarcados.</p>
+    <form method="POST" action="{{ url_for('pedidos.gerar_ordem') }}" id="form-gerar">
+        <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead><tr><th></th><th>Produto</th><th>Por quê</th><th class="text-end">Falta</th><th class="text-end">Já encomendado</th><th style="width: 100px">Comprar</th></tr></thead>
+            <tbody>
+            {% for l in linhas %}
+                <tr class="{{ 'text-muted' if l.comprar == 0 }}">
+                    <td><input class="form-check-input" type="checkbox" name="marcado" value="{{ l.produto.id }}" {{ 'checked' if l.marcado }}
+                               aria-label="Comprar {{ l.produto.nome }}"></td>
+                    <td>{{ l.produto.nome }}
+                        <div class="small text-muted">{% if l.produto.codigo_fornecedor %}cód. {{ l.produto.codigo_fornecedor }} · {% endif %}estoque {{ l.produto.quantidade }}</div></td>
+                    <td class="small">
+                        {% if l.motivo == 'pedido' %}
+                            {% for p in l.pedidos %}<a href="{{ url_for('pedidos.editar_pedido', id=p.id) }}">#{{ p.id }} {{ p.cliente.nome.split()[0] }}</a>{{ ', ' if not loop.last }}{% endfor %}
+                        {% else %}abaixo do mínimo ({{ l.produto.estoque_minimo }}){% endif %}
+                    </td>
+                    <td class="text-end">{{ l.falta or '—' }}</td>
+                    <td class="text-end">{{ l.encomendado or '—' }}</td>
+                    <td><input type="number" name="qtd_{{ l.produto.id }}" class="form-control form-control-sm" min="0" value="{{ l.comprar }}"></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="fornecedor_id">Fornecedor</label>
+                <select name="fornecedor_id" id="fornecedor_id" class="form-select form-select-sm">
+                    <option value="">(não definido)</option>
+                    {% for f in fornecedores %}<option value="{{ f.id }}">{{ f.nome }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-5">
+                <label class="form-label small mb-1" for="observacao">Observação</label>
+                <input type="text" name="observacao" id="observacao" class="form-control form-control-sm" maxlength="255">
+            </div>
+            <div class="col-12 col-md-3">
+                <button type="submit" class="btn btn-success w-100">Gerar ordem de compra</button>
+            </div>
+        </div>
+    </form>
+    {% else %}
+    <p class="text-muted">Nada faltando: o estoque cobre todos os pedidos em aberto. 🎉</p>
+    {% endif %}
+
+    <h5 class="mt-4">Ordens em aberto</h5>
+    {% for o in abertas %}
+        <div class="card mb-3" id="oc-{{ o.id }}">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div><strong>OC #{{ o.id }}</strong> · {{ o.criado_em.strftime('%d/%m/%Y %H:%M') }}
+                    · {{ o.fornecedor.nome if o.fornecedor else 'fornecedor não definido' }}</div>
+                <span class="badge bg-warning text-dark">Aguardando chegar</span>
+            </div>
+            <div class="card-body py-2">
+                {% if o.observacao %}<div class="small mb-2">📝 {{ o.observacao }}</div>{% endif %}
+                <table class="table table-sm mb-2">
+                    <thead><tr><th>Código</th><th>Produto</th><th class="text-end">Qtd</th></tr></thead>
+                    <tbody>
+                    {% for it in o.itens %}
+                        <tr><td><code>{{ it.produto.codigo_fornecedor or it.produto.codigo_barras or '—' }}</code></td>
+                            <td>{{ it.produto.nome }}</td><td class="text-end">{{ it.quantidade }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <textarea class="d-none" id="lista-{{ o.id }}">Pedido de compra #{{ o.id }}
+{% for it in o.itens %}{{ it.quantidade }}x {% if it.produto.codigo_fornecedor %}{{ it.produto.codigo_fornecedor }} - {% endif %}{{ it.produto.nome }}
+{% endfor %}</textarea>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="lista-{{ o.id }}">📋 Copiar lista</button>
+                    <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"
+                       href="https://wa.me/"
+                       data-whats="lista-{{ o.id }}">WhatsApp</a>
+                    <a href="{{ url_for('main.nova_compra', ordem=o.id) }}" class="btn btn-sm btn-success">Receber (lançar a compra)</a>
+                    <form method="POST" action="{{ url_for('pedidos.marcar_recebida', id=o.id) }}" class="d-inline"
+                          onsubmit="return confirm('Marcar como recebida sem lançar a compra aqui? Use isso só se a mercadoria já entrou no estoque por outro caminho (ex.: cupom NFC-e).')">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Já lancei a compra</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('pedidos.cancelar_ordem', id=o.id) }}" class="d-inline"
+                          onsubmit="return confirm('Cancelar a OC #{{ o.id }}? Os itens voltam para a lista do que comprar.')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted">Nenhuma ordem aguardando.</p>
+    {% endfor %}
+
+    {% if fechadas %}
+    <h5 class="mt-4">Últimas recebidas / canceladas</h5>
+    <table class="table table-sm">
+        <thead><tr><th>OC</th><th>Data</th><th>Fornecedor</th><th>Itens</th><th>Situação</th></tr></thead>
+        <tbody>
+        {% for o in fechadas %}
+            <tr><td>#{{ o.id }}</td><td>{{ o.criado_em.strftime('%d/%m/%Y') }}</td><td>{{ o.fornecedor.nome if o.fornecedor else '—' }}</td>
+                <td class="small">{% for it in o.itens %}{{ it.quantidade }}× {{ it.produto.nome }}{{ ', ' if not loop.last }}{% endfor %}</td>
+                <td>{% if o.status == 'recebida' %}<span class="badge bg-success">Recebida</span>{% if o.compra_id %} <span class="small text-muted">compra #{{ o.compra_id }}</span>{% endif %}
+                    {% else %}<span class="badge bg-secondary">Cancelada</span>{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
+    const texto = document.getElementById(b.dataset.copiar).value.trim();
+    try { await navigator.clipboard.writeText(texto); b.textContent = '✓ Copiado'; }
+    catch (e) { prompt('Copie a lista:', texto); }
+    setTimeout(() => { b.textContent = '📋 Copiar lista'; }, 2000);
+}));
+document.querySelectorAll('[data-whats]').forEach((a) => {
+    a.href = 'https://wa.me/?text=' + encodeURIComponent(document.getElementById(a.dataset.whats).value.trim());
+});
+</script>
+{% endblock %}

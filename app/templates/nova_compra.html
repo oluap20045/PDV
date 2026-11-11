@@ -60,7 +60,12 @@
         <span id="rascunho-texto"></span>
         <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="rascunho-descartar">Descartar rascunho</button>
     </div>
+    {% if ordem %}
+    <div class="alert alert-success py-2">Recebendo a <strong>ordem de compra #{{ ordem.id }}</strong>: os itens já vieram preenchidos.
+        Confira as quantidades e o custo de cada um com a nota e finalize. A ordem fica como recebida.</div>
+    {% endif %}
     <form method="POST" id="form-manual">
+        {% if ordem %}<input type="hidden" name="ordem_id" value="{{ ordem.id }}">{% endif %}
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
@@ -362,7 +367,23 @@
     });
     window.addEventListener('pageshow', () => { btn.disabled = false; btn.textContent = 'Finalizar Lançamento da Compra'; });
 
-    restaurar();
+    // veio de uma ordem de compra: preenche com ela (no lugar do rascunho)
+    const ORDEM = {{ ordem|tojson }};
+    if (ORDEM) {
+        if (ORDEM.fornecedor_id) form.elements['fornecedor_id'].value = String(ORDEM.fornecedor_id);
+        ORDEM.itens.forEach((i) => {
+            const clone = document.getElementById('item-template').content.cloneNode(true);
+            const tr = clone.querySelector('tr');
+            tr.querySelector('.campo-codigo').value = i.codigo;
+            tr.querySelector('select[name=produto_id]').value = String(i.produto_id);
+            tr.querySelector('input[name=quantidade]').value = i.quantidade;
+            if (i.custo) tr.querySelector('input[name=custo]').value = i.custo;
+            tbody.appendChild(clone);
+        });
+        document.getElementById('manual-box').open = true;
+    } else {
+        restaurar();
+    }
 })();
 </script>
 {% endblock %}

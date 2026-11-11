@@ -52,6 +52,7 @@ class ItemVenda(db.Model):
     quantidade = db.Column(db.Integer, nullable=False)
     preco_unitario = db.Column(db.Float, nullable=False)
     custo_unitario = db.Column(db.Float, nullable=False)
+    preco_tabela = db.Column(db.Float, nullable=True)   # preço do cadastro na hora; diferente de preco_unitario = desconto
 
     produto = db.relationship('Produto')
 class GrupoConta(db.Model):
@@ -270,3 +271,59 @@ class Usuario(UserMixin, db.Model):
 
     def bloqueado(self, agora=None):
         return bool(self.bloqueado_ate and self.bloqueado_ate > (agora or datetime.now()))
+
+
+# ---------------------------------------------------------------- Pedidos e ordens de compra
+
+class Pedido(db.Model):
+    """Encomenda de cliente: aceita qualquer produto, com ou sem estoque. Vira venda na entrega."""
+    id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False, index=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    previsao = db.Column(db.Date, nullable=True)                  # quando o cliente quer
+    observacao = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(12), nullable=False, default='aberto', index=True)   # aberto | entregue | cancelado
+    venda_id = db.Column(db.Integer, db.ForeignKey('venda.id'), nullable=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)
+    cliente = db.relationship('Cliente')
+    venda = db.relationship('Venda')
+    usuario = db.relationship('Usuario')
+    itens = db.relationship('PedidoItem', backref='pedido', lazy=True, cascade='all, delete-orphan',
+                            order_by='PedidoItem.id')
+
+    @property
+    def total(self):
+        return round(sum(i.quantidade * i.preco_unitario for i in self.itens), 2)
+
+
+class PedidoItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pedido_id = db.Column(db.Integer, db.ForeignKey('pedido.id'), nullable=False, index=True)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
+    quantidade = db.Column(db.Integer, nullable=False)
+    preco_unitario = db.Column(db.Float, nullable=False)          # preço combinado com o cliente
+    produto = db.relationship('Produto')
+
+
+class OrdemCompra(db.Model):
+    """Lista do que encomendar ao fornecedor. Ao chegar, vira uma Compra (estoque + contas a pagar)."""
+    __tablename__ = 'ordem_compra'
+    id = db.Column(db.Integer, primary_key=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    fornecedor_id = db.Column(db.Integer, db.ForeignKey('fornecedor.id'), nullable=True)
+    status = db.Column(db.String(12), nullable=False, default='aberta', index=True)   # aberta | recebida | cancelada
+    compra_id = db.Column(db.Integer, db.ForeignKey('compra.id'), nullable=True)
+    observacao = db.Column(db.String(255), nullable=True)
+    fornecedor = db.relationship('Fornecedor')
+    compra = db.relationship('Compra')
+    itens = db.relationship('OrdemCompraItem', backref='ordem', lazy=True, cascade='all, delete-orphan',
+                            order_by='OrdemCompraItem.id')
+
+
+class OrdemCompraItem(db.Model):
+    __tablename__ = 'ordem_compra_item'
+    id = db.Column(db.Integer, primary_key=True)
+    ordem_id = db.Column(db.Integer, db.ForeignKey('ordem_compra.id'), nullable=False, index=True)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
+    quantidade = db.Column(db.Integer, nullable=False)
+    produto = db.relationship('Produto')

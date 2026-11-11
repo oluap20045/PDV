@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">Pedidos</h2>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('pedidos.ordens_compra') }}" class="btn btn-outline-secondary">Ordens de compra</a>
+            <a href="{{ url_for('pedidos.novo_pedido') }}" class="btn btn-success">+ Novo pedido</a>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        {% for k, rotulo in STATUS.items() %}
+        <li class="nav-item">
+            <a class="nav-link {{ 'active' if k == status }}" href="{{ url_for('pedidos.pedidos', status=k) }}">
+                {{ rotulo }} <span class="badge bg-secondary">{{ contagem.get(k, 0) }}</span></a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if status == 'aberto' and pedidos %}
+    <p class="small text-muted">O estoque é reservado por ordem: primeiro quem tem entrega mais cedo, depois o pedido mais antigo.
+        O que não couber no estoque aparece como <strong>falta</strong> e vai para <a href="{{ url_for('pedidos.ordens_compra') }}">Ordens de compra</a>.</p>
+    {% endif %}
+
+    {% for p in pedidos %}
+        {% set ns = namespace(falta=0) %}
+        {% if p.status == 'aberto' %}{% for it in p.itens %}{% set ns.falta = ns.falta + situacao.get(it.id, (0, 0))[1] %}{% endfor %}{% endif %}
+        <div class="card mb-3 {{ 'border-warning' if ns.falta else ('border-success' if p.status == 'aberto') }}">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <strong>#{{ p.id }} · {{ p.cliente.nome }}</strong>
+                    <span class="small text-muted">· feito em {{ p.criado_em.strftime('%d/%m %H:%M') }}{% if p.usuario %} por {{ p.usuario.nome.split()[0] }}{% endif %}</span>
+                    {% if p.previsao %}
+                        <span class="small {{ 'text-danger fw-bold' if p.status == 'aberto' and p.previsao < hoje else 'text-muted' }}">
+                            · entregar {{ 'até' if p.previsao >= hoje else 'em' }} {{ p.previsao.strftime('%d/%m') }}{% if p.status == 'aberto' and p.previsao < hoje %} (atrasado){% endif %}</span>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if p.status == 'aberto' %}
+                        {% if ns.falta %}<span class="badge bg-warning text-dark">Falta {{ ns.falta }} un.</span>
+                        {% else %}<span class="badge bg-success">Pronto para entregar</span>{% endif %}
+                    {% elif p.status == 'entregue' %}<span class="badge bg-primary">Entregue</span>
+                    {% else %}<span class="badge bg-secondary">Cancelado</span>{% endif %}
+                    <strong class="ms-2">R$ {{ '%.2f'|format(p.total) }}</strong>
+                </div>
+            </div>
+            <div class="card-body py-2">
+                {% if p.observacao %}<div class="small mb-2">📝 {{ p.observacao }}</div>{% endif %}
+                <div class="table-responsive">
+                <table class="table table-sm align-middle mb-2">
+                    <thead><tr><th>Produto</th><th class="text-end">Qtd</th><th class="text-end">Preço</th>{% if p.status == 'aberto' %}<th>Estoque</th>{% endif %}</tr></thead>
+                    <tbody>
+                    {% for it in p.itens %}
+                        {% set at, fa = situacao.get(it.id, (0, 0)) %}
+                        <tr>
+                            <td>{{ it.produto.nome }}{% if it.produto.codigo_fornecedor %} <span class="small text-muted">({{ it.produto.codigo_fornecedor }})</span>{% endif %}</td>
+                            <td class="text-end">{{ it.quantidade }}</td>
+                            <td class="text-end text-nowrap">R$ {{ '%.2f'|format(it.preco_unitario) }}
+                                {% if it.preco_unitario < it.produto.preco - 0.004 %}<div class="small text-success">desconto</div>{% endif %}</td>
+                            {% if p.status == 'aberto' %}
+                            <td class="small">{% if fa %}<span class="text-danger">⚠ falta {{ fa }}</span>{% if at %} <span class="text-muted">(tem {{ at }})</span>{% endif %}
+                                {% else %}<span class="text-success">✓ reservado</span>{% endif %}</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if p.status == 'aberto' %}
+                        {% if ns.falta %}
+                            <button type="button" class="btn btn-sm btn-success" disabled title="Ainda falta produto no estoque">Entregar e cobrar</button>
+                        {% else %}
+                            <a href="{{ url_for('main.venda_pdv', pedido=p.id) }}" class="btn btn-sm btn-success">Entregar e cobrar</a>
+                        {% endif %}
+                        <a href="{{ url_for('pedidos.editar_pedido', id=p.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                        <form method="POST" action="{{ url_for('pedidos.cancelar_pedido', id=p.id) }}" class="d-inline"
+                              onsubmit="return confirm('Cancelar o pedido #{{ p.id }}?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar pedido</button>
+                        </form>
+                    {% elif p.status == 'entregue' and p.venda %}
+                        <span class="small text-muted">Virou a venda nº {{ p.venda_id }} em {{ p.venda.data.strftime('%d/%m/%Y') }}.</span>
+                    {% elif p.status == 'cancelado' %}
+                        <form method="POST" action="{{ url_for('pedidos.reabrir_pedido', id=p.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Reabrir</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted">Nenhum pedido {{ STATUS[status]|lower }}.</p>
+    {% endfor %}
+{% endblock %}

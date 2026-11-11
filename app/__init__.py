@@ -29,6 +29,8 @@ def create_app(config_class=Config):
     from app.routes import bp as main_blueprint
     # Registra o Blueprint na aplicação
     app.register_blueprint(main_blueprint)
+    from app.pedidos import bp as pedidos_blueprint
+    app.register_blueprint(pedidos_blueprint)
 
     # A importação de 'models' pode continuar aqui
     from app import models

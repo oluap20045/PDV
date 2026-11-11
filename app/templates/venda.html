@@ -70,14 +70,31 @@
         <div class="col-12 col-md-7">
           <div class="painel">
             <h4><span class="passo">3</span> Carrinho</h4>
+            {% if pedido %}
+            <div class="alert alert-info py-2 small">Entrega do <strong>pedido #{{ pedido.id }}</strong>: o carrinho já veio com os itens
+                e preços combinados. Ao finalizar, o pedido fica como entregue.
+                <a href="{{ url_for('main.venda_pdv') }}">Sair do pedido</a></div>
+            {% endif %}
             <div class="venda-para mb-2">Venda para <strong id="cliente-nome"></strong></div>
             <form id="venda-form" method="POST">
+                {% if pedido %}<input type="hidden" name="pedido_id" value="{{ pedido.id }}">{% endif %}
                 <div class="table-responsive">
                 <table class="table align-middle">
                     <thead><tr><th>Produto</th><th>Qtd</th><th>Preço Unit.</th><th>Subtotal</th><th></th></tr></thead>
                     <tbody id="carrinho-body"></tbody>
                 </table>
                 </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 small mb-2" id="desconto-box" hidden>
+                    <label for="desconto-geral" class="mb-0">Desconto em tudo</label>
+                    <div class="input-group input-group-sm" style="width: 8rem">
+                        <input type="text" id="desconto-geral" class="form-control" inputmode="decimal" placeholder="0">
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="desconto-aplicar">Aplicar</button>
+                    <button type="button" class="btn btn-sm btn-link p-0" id="desconto-limpar">voltar ao preço de tabela</button>
+                    <span class="text-success ms-auto" id="desconto-total"></span>
+                </div>
+                <div class="small text-muted mb-2" id="desconto-dica" hidden>Clique no preço de um item para mudar (promoção) ou digite <strong>10%</strong> para desconto.</div>
                 <div id="carrinho-vazio" class="carrinho-vazio">
                     <span class="folha" aria-hidden="true">🍃</span>
                     Carrinho vazio — bipe um produto para começar.
@@ -160,48 +177,98 @@ document.addEventListener('DOMContentLoaded', () => {
         if (opt.dataset.codigo) porCodigo[opt.dataset.codigo] = p;
     }
 
-    const carrinho = {};   // id -> quantidade
+    const carrinho = {};   // id -> { qtd, preco }  (preco = preço praticado; produtos[id].preco = tabela)
     const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const vazio = document.getElementById('carrinho-vazio');
+    const r2 = (v) => Math.round(v * 100) / 100;
+    // "5,90" -> 5.9 ; "10%" -> 10% de desconto sobre a tabela ; inválido -> null
+    function lerPreco(texto, tabela) {
+        let t = String(texto).replace('R$', '').trim();
+        const pct = t.endsWith('%');
+        if (pct) t = t.slice(0, -1).trim();
+        if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+        const v = parseFloat(t);
+        if (isNaN(v) || v < 0 || (pct && v > 100)) return null;
+        return r2(pct ? tabela * (1 - v / 100) : v);
+    }
 
     function render() {
         carrinhoBody.innerHTML = '';
-        let total = 0;
-        for (const [id, qtd] of Object.entries(carrinho)) {
+        let total = 0, desconto = 0;
+        for (const [id, item] of Object.entries(carrinho)) {
             const p = produtos[id];
-            const subtotal = p.preco * qtd;
+            const subtotal = item.preco * item.qtd;
             total += subtotal;
+            desconto += (p.preco - item.preco) * item.qtd;
+            const promo = Math.abs(item.preco - p.preco) > 0.004;
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td></td>
-                <td>${qtd}</td>
-                <td>${brl(p.preco)}</td>
+                <td>${item.qtd}</td>
+                <td style="min-width: 7.5rem">
+                    <input type="text" class="form-control form-control-sm preco-item ${promo ? 'border-success' : ''}" inputmode="decimal"
+                           value="${item.preco.toFixed(2).replace('.', ',')}" aria-label="Preço unitário" title="Preço (ou 10% para desconto)">
+                    ${promo ? `<div class="small text-muted"><s>${brl(p.preco)}</s> ${item.preco < p.preco ? '−' + Math.round((1 - item.preco / p.preco) * 100) + '%' : ''}</div>` : ''}
+                </td>
                 <td>${brl(subtotal)}</td>
                 <td class="text-nowrap">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-acao="menos">−</button>
                     <button type="button" class="btn btn-danger btn-sm" data-acao="remover">✕</button>
-                    <input type="hidden" name="carrinho[]" value="${id}|${qtd}">
+                    <input type="hidden" name="carrinho[]" value="${id}|${item.qtd}|${item.preco.toFixed(2)}">
                 </td>`;
             tr.cells[0].textContent = p.nome;   // textContent: nome nunca vira HTML
-            tr.querySelector('[data-acao=menos]').onclick = () => { carrinho[id]--; if (carrinho[id] <= 0) delete carrinho[id]; render(); };
+            tr.querySelector('[data-acao=menos]').onclick = () => { item.qtd--; if (item.qtd <= 0) delete carrinho[id]; render(); };
             tr.querySelector('[data-acao=remover]').onclick = () => { delete carrinho[id]; render(); };
+            const campo = tr.querySelector('.preco-item');
+            const aplicar = () => {
+                const v = lerPreco(campo.value, p.preco);
+                if (v === null) { campo.classList.add('is-invalid'); return; }
+                item.preco = v; render();
+            };
+            campo.addEventListener('change', aplicar);
+            campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); aplicar(); } });
+            campo.addEventListener('focus', () => campo.select());
             carrinhoBody.appendChild(tr);
         }
+        total = r2(total);
         totalVendaSpan.innerText = brl(total);
-        atualizarPagamentos(Math.round(total * 100) / 100);
-        vazio.style.display = Object.keys(carrinho).length ? 'none' : '';
+        atualizarPagamentos(total);
+        const tem = Object.keys(carrinho).length > 0;
+        vazio.style.display = tem ? 'none' : '';
+        document.getElementById('desconto-box').hidden = !tem;
+        document.getElementById('desconto-dica').hidden = !tem;
+        document.getElementById('desconto-total').textContent = desconto > 0.004 ? `Desconto: ${brl(r2(desconto))}` : '';
     }
 
     // devolve mensagem (usada também no status do leitor de câmera)
-    function adicionar(p, qtd) {
-        const atual = carrinho[p.id] || 0;
+    function adicionar(p, qtd, preco) {
+        const atual = carrinho[p.id] ? carrinho[p.id].qtd : 0;
         if (atual + qtd > p.estoque) {
             return `Estoque insuficiente: ${p.nome} tem só ${p.estoque}.`;
         }
-        carrinho[p.id] = atual + qtd;
+        if (carrinho[p.id]) carrinho[p.id].qtd += qtd;
+        else carrinho[p.id] = { qtd, preco: preco ?? p.preco };
         render();
-        return `+${qtd} ${p.nome} (no carrinho: ${carrinho[p.id]})`;
+        return `+${qtd} ${p.nome} (no carrinho: ${carrinho[p.id].qtd})`;
     }
+
+    // desconto % em todos os itens (sobre o preço de tabela)
+    document.getElementById('desconto-aplicar').addEventListener('click', () => {
+        const campo = document.getElementById('desconto-geral');
+        const pct = lerPreco(campo.value || '0', 100);
+        if (pct === null || pct > 100) { campo.classList.add('is-invalid'); return; }
+        campo.classList.remove('is-invalid');
+        for (const [id, item] of Object.entries(carrinho)) item.preco = r2(produtos[id].preco * (1 - pct / 100));
+        render();
+    });
+    document.getElementById('desconto-geral').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); document.getElementById('desconto-aplicar').click(); }
+    });
+    document.getElementById('desconto-limpar').addEventListener('click', () => {
+        for (const [id, item] of Object.entries(carrinho)) item.preco = produtos[id].preco;
+        document.getElementById('desconto-geral').value = '';
+        render();
+    });
 
     function porCodigoDeBarras(codigo) {
         codigo = codigo.trim();
@@ -348,6 +415,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = adicionar(produtos[opt.value], Math.max(1, parseInt(quantidadeInput.value) || 1));
         if (!msg.startsWith('+')) alert(msg);
     });
+
+    // entrega de pedido: carrinho já vem com os itens e preços combinados
+    const PEDIDO = {{ pedido_js|tojson }};
+    if (PEDIDO) {
+        const problemas = [];
+        for (const it of PEDIDO.itens) {
+            const p = produtos[it.id];
+            if (!p) { problemas.push(`produto ${it.id} sem estoque`); continue; }
+            const msg = adicionar(p, it.qtd, it.preco);
+            if (!msg.startsWith('+')) problemas.push(msg);
+        }
+        if (problemas.length) alert('Atenção, o pedido não coube inteiro no estoque:\n' + problemas.join('\n'));
+    }
 });
 </script>
 {% endblock %}
