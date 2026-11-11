@@ -1,21 +1,48 @@
 {% extends 'base.html' %}
 {% block content %}
-    <h2>Cadastro de Fornecedores</h2>
+    <h2>Fornecedores</h2>
     <div class="card mb-4">
         <div class="card-body">
-            <form method="POST">
-                <div class="input-group">
-                    <input type="text" name="nome_fornecedor" class="form-control" placeholder="Nome do Novo Fornecedor" required>
-                    <button type="submit" class="btn btn-primary">Adicionar</button>
+            <form method="POST" class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="novo-nome">Nome</label>
+                    <input type="text" name="nome_fornecedor" id="novo-nome" class="form-control" placeholder="ex.: Cacau Show" required maxlength="150">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-1" for="novo-contato">Contato</label>
+                    <input type="text" name="contato" id="novo-contato" class="form-control" placeholder="quem atende" maxlength="100">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small mb-1" for="novo-whats">WhatsApp</label>
+                    <input type="tel" name="whatsapp" id="novo-whats" class="form-control" placeholder="(41) 99999-9999" inputmode="tel">
+                </div>
+                <div class="col-12 col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">Adicionar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <h3>Fornecedores Cadastrados</h3>
-    <ul class="list-group">
-        {% for f in fornecedores %}
-        <li class="list-group-item">{{ f.nome }}</li>
-        {% endfor %}
-    </ul>
+    <h5>Cadastrados</h5>
+    <p class="small text-muted">Com o WhatsApp preenchido, a ordem de compra abre direto na conversa do fornecedor.</p>
+    {% for f in fornecedores %}
+        <form method="POST" class="row g-2 align-items-center border-bottom py-2">
+            <input type="hidden" name="id" value="{{ f.id }}">
+            <div class="col-12 col-md-4">
+                <input type="text" name="nome_fornecedor" class="form-control form-control-sm" value="{{ f.nome }}" required maxlength="150" aria-label="Nome">
+                {% if f.cnpj %}<div class="small text-muted">CNPJ {{ f.cnpj|cnpj }}</div>{% endif %}
+            </div>
+            <div class="col-6 col-md-3">
+                <input type="text" name="contato" class="form-control form-control-sm" value="{{ f.contato or '' }}" placeholder="Contato" maxlength="100" aria-label="Contato">
+            </div>
+            <div class="col-6 col-md-3">
+                <input type="tel" name="whatsapp" class="form-control form-control-sm" value="{{ f.whatsapp|telefone if f.whatsapp else '' }}" placeholder="WhatsApp" inputmode="tel" aria-label="WhatsApp">
+            </div>
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Salvar</button>
+            </div>
+        </form>
+    {% else %}
+        <p class="text-muted">Nenhum fornecedor ainda.</p>
+    {% endfor %}
 {% endblock %}

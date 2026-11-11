@@ -151,3 +151,95 @@ def texto_whatsapp(venda, empresa):
         linhas += ['', empresa.mensagem]
     linhas.append('_Documento sem valor fiscal_')
     return '\n'.join(linhas)
+
+
+# ---------------------------------------------------------------- Ordem de compra (para o fornecedor)
+
+def gerar_pdf_ordem(ordem, empresa):
+    """Pedido de compra em A4: código do fornecedor, produto e quantidade."""
+    pdf = FPDF(unit='mm', format='A4')
+    pdf.set_auto_page_break(True, 15)
+    pdf.set_margins(15, 15, 15)
+    pdf.set_title(_txt(f'Pedido de compra {ordem.id} - {empresa.nome}'))
+    pdf.set_author(_txt(empresa.nome))
+    pdf.add_page()
+    largura = 180
+
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.cell(largura, 7, _txt(empresa.nome), new_x='LMARGIN', new_y='NEXT')
+    pdf.set_font('Helvetica', '', 9)
+    dados = []
+    if empresa.cnpj:
+        dados.append(f'CNPJ {formatar_cnpj(empresa.cnpj)}')
+    if empresa.telefone:
+        dados.append(f'Tel/WhatsApp {formatar_fone(empresa.telefone)}')
+    if dados:
+        pdf.cell(largura, 5, _txt('   '.join(dados)), new_x='LMARGIN', new_y='NEXT')
+    if empresa.endereco:
+        pdf.multi_cell(largura, 5, _txt(empresa.endereco), new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(4)
+
+    pdf.set_font('Helvetica', 'B', 13)
+    pdf.cell(largura / 2, 8, _txt(f'PEDIDO DE COMPRA Nº {ordem.id}'))
+    pdf.set_font('Helvetica', '', 10)
+    pdf.cell(largura / 2, 8, _txt(ordem.criado_em.strftime('%d/%m/%Y')), align='R', new_x='LMARGIN', new_y='NEXT')
+    if ordem.fornecedor:
+        f = ordem.fornecedor
+        texto = f'Fornecedor: {f.nome}'
+        if f.contato:
+            texto += f'  (A/C {f.contato})'
+        pdf.cell(largura, 6, _txt(texto), new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # tabela
+    col = (32, 123, 25)
+    pdf.set_fill_color(235, 235, 235)
+    pdf.set_font('Helvetica', 'B', 10)
+    for w, t, a in zip(col, ('Código', 'Produto', 'Qtd'), ('L', 'L', 'R')):
+        pdf.cell(w, 8, _txt(t), border=1, align=a, fill=True)
+    pdf.ln()
+    pdf.set_font('Helvetica', '', 10)
+    total = 0
+    for it in ordem.itens:
+        p = it.produto
+        codigo = p.codigo_fornecedor or p.codigo_barras or '-'
+        nome = _txt(p.nome)
+        # nome longo: quebra a linha da tabela inteira na mesma altura
+        linhas = max(1, len(pdf.multi_cell(col[1], 6, nome, dry_run=True, output='LINES')))
+        h = 6 * linhas
+        if pdf.get_y() + h > pdf.h - 20:
+            pdf.add_page()
+        x, y = pdf.get_x(), pdf.get_y()
+        pdf.cell(col[0], h, _txt(codigo), border=1)
+        pdf.multi_cell(col[1], 6, nome, border=1, new_x='RIGHT', new_y='TOP', max_line_height=6)
+        pdf.set_xy(x + col[0] + col[1], y)
+        pdf.cell(col[2], h, str(it.quantidade), border=1, align='R')
+        pdf.set_xy(x, y + h)
+        total += it.quantidade
+    pdf.set_font('Helvetica', 'B', 10)
+    pdf.cell(col[0] + col[1], 8, _txt(f'{len(ordem.itens)} produto(s)'), border=1)
+    pdf.cell(col[2], 8, str(total), border=1, align='R', new_x='LMARGIN', new_y='NEXT')
+
+    if ordem.observacao:
+        pdf.ln(4)
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(largura, 6, _txt('Observação'), new_x='LMARGIN', new_y='NEXT')
+        pdf.set_font('Helvetica', '', 10)
+        pdf.multi_cell(largura, 5, _txt(ordem.observacao), new_x='LMARGIN', new_y='NEXT')
+    return bytes(pdf.output())
+
+
+def texto_whatsapp_ordem(ordem, empresa):
+    f = ordem.fornecedor
+    saudacao = f'Olá, {f.contato.split()[0]}!' if f and f.contato else 'Olá!'
+    linhas = [f'{saudacao} Segue o pedido de compra da *{empresa.nome}*:', '',
+              f'*Pedido de compra nº {ordem.id}* — {ordem.criado_em.strftime("%d/%m/%Y")}']
+    for it in ordem.itens:
+        p = it.produto
+        codigo = p.codigo_fornecedor or p.codigo_barras
+        linhas.append(f'• {it.quantidade}x {codigo + " - " if codigo else ""}{p.nome}')
+    linhas += ['', f'Total: {sum(i.quantidade for i in ordem.itens)} unidade(s) em {len(ordem.itens)} produto(s)']
+    if ordem.observacao:
+        linhas += ['', f'Obs.: {ordem.observacao}']
+    linhas += ['', 'Pode confirmar a disponibilidade e o prazo? Obrigado!']
+    return '\n'.join(linhas)

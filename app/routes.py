@@ -582,12 +582,33 @@ def quitar_lancamento(id):
 @bp.route('/fornecedores', methods=['GET', 'POST'])
 def fornecedores():
     if request.method == 'POST':
-        novo_fornecedor = Fornecedor(nome=request.form['nome_fornecedor'])
-        db.session.add(novo_fornecedor)
+        nome = (request.form.get('nome_fornecedor') or '').strip()
+        fid = request.form.get('id', type=int)
+        forn = db.session.get(Fornecedor, fid) if fid else Fornecedor()
+        if forn is None:
+            abort(404)
+        if not nome:
+            flash('Digite o nome do fornecedor.', 'danger')
+            return redirect(url_for('main.fornecedores'))
+        outro = Fornecedor.query.filter(Fornecedor.nome == nome, Fornecedor.id != (forn.id or 0)).first()
+        if outro:
+            flash(f'Já existe um fornecedor chamado {nome}.', 'danger')
+            return redirect(url_for('main.fornecedores'))
+        whatsapp = _so_digitos(request.form.get('whatsapp'))
+        if whatsapp.startswith('55') and len(whatsapp) in (12, 13):
+            whatsapp = whatsapp[2:]
+        if whatsapp and len(whatsapp) not in (10, 11):
+            flash('WhatsApp inválido: use DDD + número, ex.: (41) 99999-9999.', 'danger')
+            return redirect(url_for('main.fornecedores'))
+        forn.nome = nome
+        forn.contato = (request.form.get('contato') or '').strip()[:100] or None
+        forn.whatsapp = whatsapp or None
+        if forn.id is None:
+            db.session.add(forn)
         db.session.commit()
-        flash('Fornecedor cadastrado com sucesso!', 'success')
+        flash(f'Fornecedor {nome} {"atualizado" if fid else "cadastrado"}.', 'success')
         return redirect(url_for('main.fornecedores'))
-    
+
     lista_fornecedores = Fornecedor.query.order_by(Fornecedor.nome).all()
     return render_template('fornecedores.html', fornecedores=lista_fornecedores)
 

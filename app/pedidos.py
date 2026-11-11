@@ -8,11 +8,14 @@ from collections import defaultdict
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+import re
+from urllib.parse import quote
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, Response
 from flask_login import current_user
 
 from app import db
-from app.models import Pedido, PedidoItem, OrdemCompra, OrdemCompraItem, Produto, Cliente, Fornecedor
+from app.models import Pedido, PedidoItem, OrdemCompra, OrdemCompraItem, Produto, Cliente, Fornecedor, Empresa
 
 bp = Blueprint('pedidos', __name__)
 
@@ -286,6 +289,36 @@ def marcar_recebida(id):
         db.session.commit()
         flash(f'Ordem de compra #{ordem.id} marcada como recebida.', 'info')
     return redirect(url_for('pedidos.ordens_compra'))
+
+
+@bp.route('/ordem-compra/<int:id>/fornecedor', methods=['POST'])
+def trocar_fornecedor(id):
+    ordem = db.get_or_404(OrdemCompra, id)
+    ordem.fornecedor_id = request.form.get('fornecedor_id', type=int) or None
+    db.session.commit()
+    return redirect(url_for('pedidos.ordens_compra', _anchor=f'oc-{ordem.id}'))
+
+
+@bp.route('/ordem-compra/<int:id>.pdf')
+def ordem_pdf(id):
+    from app.comprovante import gerar_pdf_ordem
+    ordem = db.get_or_404(OrdemCompra, id)
+    pdf = gerar_pdf_ordem(ordem, Empresa.atual())
+    disposicao = 'attachment' if request.args.get('baixar') else 'inline'
+    return Response(pdf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'{disposicao}; filename="pedido-de-compra-{ordem.id}.pdf"'})
+
+
+@bp.route('/ordem-compra/<int:id>/whatsapp')
+def ordem_whatsapp(id):
+    """Abre o WhatsApp na conversa do fornecedor (se tiver número) com a lista do pedido."""
+    from app.comprovante import texto_whatsapp_ordem
+    ordem = db.get_or_404(OrdemCompra, id)
+    texto = quote(texto_whatsapp_ordem(ordem, Empresa.atual()))
+    numero = re.sub(r'\D', '', (ordem.fornecedor.whatsapp or '') if ordem.fornecedor else '')
+    if len(numero) in (10, 11):
+        return redirect(f'https://wa.me/55{numero}?text={texto}')
+    return redirect(f'https://wa.me/?text={texto}')   # sem número: o WhatsApp pede o contato
 
 
 def ordem_para_compra(ordem_id):

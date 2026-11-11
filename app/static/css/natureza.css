@@ -164,3 +164,4 @@
     border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
 .scanner-mira.qr { left: 20%; right: 20%; top: 15%; bottom: 15%; }
 #scanner-lanterna.active { background: #f5c542; border-color: #f5c542; color: #000; }
+.scanner-video video.espelhado { transform: scaleX(-1); }

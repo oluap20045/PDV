@@ -59,7 +59,12 @@
         <div class="card mb-3" id="oc-{{ o.id }}">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div><strong>OC #{{ o.id }}</strong> · {{ o.criado_em.strftime('%d/%m/%Y %H:%M') }}
-                    · {{ o.fornecedor.nome if o.fornecedor else 'fornecedor não definido' }}</div>
+                    <form method="POST" action="{{ url_for('pedidos.trocar_fornecedor', id=o.id) }}" class="d-inline-block ms-1">
+                        <select name="fornecedor_id" class="form-select form-select-sm d-inline-block w-auto" aria-label="Fornecedor da OC {{ o.id }}" onchange="this.form.submit()">
+                            <option value="">fornecedor não definido</option>
+                            {% for f in fornecedores %}<option value="{{ f.id }}" {{ 'selected' if f.id == o.fornecedor_id }}>{{ f.nome }}</option>{% endfor %}
+                        </select>
+                    </form></div>
                 <span class="badge bg-warning text-dark">Aguardando chegar</span>
             </div>
             <div class="card-body py-2">
@@ -76,11 +81,20 @@
                 <textarea class="d-none" id="lista-{{ o.id }}">Pedido de compra #{{ o.id }}
 {% for it in o.itens %}{{ it.quantidade }}x {% if it.produto.codigo_fornecedor %}{{ it.produto.codigo_fornecedor }} - {% endif %}{{ it.produto.nome }}
 {% endfor %}</textarea>
-                <div class="d-flex flex-wrap gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="lista-{{ o.id }}">📋 Copiar lista</button>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="small text-muted">Enviar ao fornecedor:</span>
+                    <button type="button" class="btn btn-sm btn-success btn-compartilhar-pdf"
+                            data-pdf="{{ url_for('pedidos.ordem_pdf', id=o.id) }}" data-nome="pedido-de-compra-{{ o.id }}.pdf"
+                            data-texto="Pedido de compra nº {{ o.id }}">📎 Enviar PDF</button>
                     <a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener"
-                       href="https://wa.me/"
-                       data-whats="lista-{{ o.id }}">WhatsApp</a>
+                       href="{{ url_for('pedidos.ordem_whatsapp', id=o.id) }}">💬 WhatsApp{% if o.fornecedor and o.fornecedor.whatsapp %} de {{ (o.fornecedor.contato or o.fornecedor.nome).split()[0] }}{% endif %}</a>
+                    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener" href="{{ url_for('pedidos.ordem_pdf', id=o.id) }}">📄 Ver / imprimir</a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="lista-{{ o.id }}">📋 Copiar lista</button>
+                    {% if not (o.fornecedor and o.fornecedor.whatsapp) %}
+                    <span class="small text-muted">— cadastre o WhatsApp do fornecedor em <a href="{{ url_for('main.fornecedores') }}">Fornecedores</a> para abrir direto na conversa</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex flex-wrap gap-2">
                     <a href="{{ url_for('main.nova_compra', ordem=o.id) }}" class="btn btn-sm btn-success">Receber (lançar a compra)</a>
                     <form method="POST" action="{{ url_for('pedidos.marcar_recebida', id=o.id) }}" class="d-inline"
                           onsubmit="return confirm('Marcar como recebida sem lançar a compra aqui? Use isso só se a mercadoria já entrou no estoque por outro caminho (ex.: cupom NFC-e).')">
@@ -121,8 +135,5 @@ document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('cl
     catch (e) { prompt('Copie a lista:', texto); }
     setTimeout(() => { b.textContent = '📋 Copiar lista'; }, 2000);
 }));
-document.querySelectorAll('[data-whats]').forEach((a) => {
-    a.href = 'https://wa.me/?text=' + encodeURIComponent(document.getElementById(a.dataset.whats).value.trim());
-});
 </script>
 {% endblock %}

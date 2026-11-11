@@ -22,11 +22,47 @@ const PdvScanner = (() => {
         const F = Html5QrcodeSupportedFormats;
         return opcoes.qr ? [F.QR_CODE] : [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128];
     };
-    const VIDEO = () => ({
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 }, height: { ideal: 1080 },
-        advanced: [{ focusMode: 'continuous' }],
-    });
+    // câmera escolhida pelo usuário (fica lembrada no aparelho)
+    const CHAVE_CAMERA = 'pdv_camera';
+    const cameraSalva = () => { try { return localStorage.getItem(CHAVE_CAMERA) || ''; } catch (e) { return ''; } };
+    const salvarCamera = (id) => { try { id ? localStorage.setItem(CHAVE_CAMERA, id) : localStorage.removeItem(CHAVE_CAMERA); } catch (e) { /* ok */ } };
+    const VIDEO = (usarSalva = true) => {
+        const id = usarSalva ? cameraSalva() : '';
+        return Object.assign(id ? { deviceId: { exact: id } } : { facingMode: { ideal: 'environment' } }, {
+            width: { ideal: 1920 }, height: { ideal: 1080 },
+            advanced: [{ focusMode: 'continuous' }],
+        });
+    };
+    const CELULAR = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    async function abrirCamera() {
+        try {
+            return await navigator.mediaDevices.getUserMedia({ video: VIDEO(), audio: false });
+        } catch (e) {
+            if (!cameraSalva()) throw e;
+            salvarCamera('');            // a câmera escolhida sumiu (ex.: iPhone desconectado): usa a padrão
+            return navigator.mediaDevices.getUserMedia({ video: VIDEO(false), audio: false });
+        }
+    }
+
+    // webcam do notebook olha para a pessoa: espelha a imagem para mirar ficar natural
+    function deveEspelhar(track) {
+        const st = track.getSettings ? track.getSettings() : {};
+        if (st.facingMode) return st.facingMode === 'user';
+        return !CELULAR && !/iphone|back|rear|traseira|environment/i.test(track.label || '');
+    }
+
+    async function listarCameras() {
+        const sel = document.getElementById('scanner-camera');
+        if (!sel || !navigator.mediaDevices.enumerateDevices) return;
+        const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+        sel.hidden = cams.length < 2;
+        const atual = trilha && trilha.getSettings ? trilha.getSettings().deviceId : '';
+        sel.innerHTML = cams.map((c, i) =>
+            `<option value="${c.deviceId}" ${c.deviceId === atual ? 'selected' : ''}>${(c.label || 'Câmera ' + (i + 1)).replace(/</g, '')}</option>`).join('');
+        document.getElementById('scanner-controles').hidden = sel.hidden && document.getElementById('scanner-lanterna').hidden
+            && document.getElementById('scanner-zoom').hidden;
+    }
 
     function bipe() {
         try {
@@ -165,7 +201,7 @@ const PdvScanner = (() => {
 
     async function iniciarNativo(minha, formatos, Detector = window.BarcodeDetector) {
         const detector = new Detector({ formats: formatos });
-        const stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO(), audio: false });
+        const stream = await abrirCamera();
         if (minha !== sessao) { stream.getTracks().forEach((t) => t.stop()); return; }
         const area = document.getElementById('scanner-leitor');
         area.innerHTML = '<div class="scanner-video"><video playsinline muted autoplay></video><div class="scanner-mira"></div></div>';
@@ -175,6 +211,7 @@ const PdvScanner = (() => {
         await video.play().catch(() => {});
         nativo = { stream, timer: null };
         trilha = stream.getVideoTracks()[0];
+        video.classList.toggle('espelhado', deveEspelhar(trilha));
         const ciclo = async () => {
             if (!nativo || minha !== sessao) return;
             try {
@@ -241,8 +278,11 @@ const PdvScanner = (() => {
             else await iniciarBiblioteca(minha);
             if (minha !== sessao) return;
             controles();
+            await listarCameras().catch(() => {});
             await zoomInicial();
-            status(opcoes.qr ? 'Aponte para o QR Code' : 'Aponte para o código de barras, a um palmo de distância');
+            status(opcoes.qr ? 'Aponte para o QR Code'
+                : (CELULAR ? 'Aponte para o código de barras, a um palmo de distância'
+                           : 'Mostre o código de barras para a câmera a uns 25–30 cm, com boa luz e parado'));
         } catch (e) {
             status('Não consegui abrir a câmera: ' + (e.message || e) +
                    '. Verifique a permissão de câmera do navegador.', 'danger');
@@ -256,6 +296,8 @@ const PdvScanner = (() => {
         const zoom = document.getElementById('scanner-zoom');
         if (luz) luz.addEventListener('click', alternarLanterna);
         if (zoom) zoom.addEventListener('click', alternarZoom);
+        const cam = document.getElementById('scanner-camera');
+        if (cam) cam.addEventListener('change', () => { salvarCamera(cam.value); abrir(opcoes); });
     });
 
     return { abrir, bipe };

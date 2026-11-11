@@ -92,6 +92,8 @@ class Fornecedor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(150), nullable=False, unique=True)
     cnpj = db.Column(db.String(14), unique=True, nullable=True)   # só dígitos; preenchido na importação de NFC-e
+    contato = db.Column(db.String(100), nullable=True)      # nome de quem atende (vendedor, consultora)
+    whatsapp = db.Column(db.String(20), nullable=True)      # só dígitos, com DDD — para mandar a ordem de compra
     compras = db.relationship('Compra', backref='fornecedor', lazy=True)
 
     def __repr__(self):
