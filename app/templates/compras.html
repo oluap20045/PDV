@@ -75,3 +75,13 @@
         </nav>
     </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+// a compra manual que estava sendo enviada chegou: apaga o rascunho guardado no aparelho
+try {
+    const r = JSON.parse(localStorage.getItem('pdv_rascunho_compra'));
+    if (r && r.enviado) localStorage.removeItem('pdv_rascunho_compra');
+} catch (e) { /* sem storage */ }
+</script>
+{% endblock %}

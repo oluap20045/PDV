@@ -56,7 +56,11 @@
 
     <details class="mb-2" id="manual-box">
     <summary class="h5 mb-3" style="cursor:pointer">Lançar manualmente (sem cupom)</summary>
-    <form method="POST">
+    <div class="alert alert-info d-flex flex-wrap align-items-center gap-2" id="rascunho-aviso" hidden>
+        <span id="rascunho-texto"></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="rascunho-descartar">Descartar rascunho</button>
+    </div>
+    <form method="POST" id="form-manual">
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
@@ -102,7 +106,7 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary mt-3">Finalizar Lançamento da Compra</button>
+        <button type="submit" class="btn btn-primary mt-3" id="btn-finalizar">Finalizar Lançamento da Compra</button>
     </form>
     </details>
 
@@ -292,8 +296,73 @@
         PdvScanner.abrir({ continuo: false, onLeitura: (codigo) => {
             tr.querySelector('.campo-codigo').value = codigo;
             aplicarCodigo(tr);
+            salvar();
         } });
     });
+
+    // ---------- rascunho: o que foi digitado fica guardado no aparelho até a compra ser gravada
+    // (se a internet cair no meio do envio, nada se perde: é só abrir a tela de novo e enviar)
+    const CHAVE = 'pdv_rascunho_compra';
+    const form = document.getElementById('form-manual');
+    const CAMPOS = ['fornecedor_id', 'nota_fiscal', 'data_vencimento', 'conta_id'];
+    const ler = () => { try { return JSON.parse(localStorage.getItem(CHAVE)); } catch (e) { return null; } };
+    const gravar = (r) => { try { r ? localStorage.setItem(CHAVE, JSON.stringify(r)) : localStorage.removeItem(CHAVE); } catch (e) { /* sem storage */ } };
+
+    function salvar(enviado = false) {
+        const itens = Array.from(tbody.querySelectorAll('tr')).map((tr) => ({
+            codigo: tr.querySelector('.campo-codigo').value,
+            produto_id: tr.querySelector('select[name=produto_id]').value,
+            quantidade: tr.querySelector('input[name=quantidade]').value,
+            custo: tr.querySelector('input[name=custo]').value,
+        }));
+        const r = { itens, salvo_em: Date.now(), enviado };
+        CAMPOS.forEach((c) => { r[c] = form.elements[c].value; });
+        const vazio = !r.nota_fiscal && !itens.some((i) => i.produto_id || i.quantidade || i.custo);
+        gravar(vazio ? null : r);
+    }
+
+    function restaurar() {
+        const r = ler();
+        if (!r || Date.now() - r.salvo_em > 7 * 86400000) { gravar(null); return; }
+        CAMPOS.forEach((c) => {
+            const el = form.elements[c];
+            if (r[c] && (el.tagName !== 'SELECT' || el.querySelector(`option[value="${CSS.escape(r[c])}"]`))) el.value = r[c];
+        });
+        (r.itens || []).forEach((i) => {
+            const clone = document.getElementById('item-template').content.cloneNode(true);
+            const tr = clone.querySelector('tr');
+            tr.querySelector('.campo-codigo').value = i.codigo || '';
+            const sel = tr.querySelector('select[name=produto_id]');
+            if (i.produto_id && sel.querySelector(`option[value="${CSS.escape(i.produto_id)}"]`)) sel.value = i.produto_id;
+            tr.querySelector('input[name=quantidade]').value = i.quantidade || '';
+            tr.querySelector('input[name=custo]').value = i.custo || '';
+            tbody.appendChild(clone);
+        });
+        document.getElementById('manual-box').open = true;
+        const quando = new Date(r.salvo_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        document.getElementById('rascunho-texto').textContent = r.enviado
+            ? `A compra${r.nota_fiscal ? ' NF ' + r.nota_fiscal : ''} foi enviada em ${quando} mas não foi confirmada (a internet pode ter caído). Confira em Compras se ela já está lá; se não estiver, é só finalizar de novo.`
+            : `Rascunho recuperado (${(r.itens || []).length} item(ns), salvo em ${quando}).`;
+        document.getElementById('rascunho-aviso').hidden = false;
+    }
+
+    document.getElementById('rascunho-descartar').addEventListener('click', () => {
+        if (!confirm('Apagar o que foi digitado nesta compra?')) return;
+        gravar(null); location.reload();
+    });
+    form.addEventListener('input', () => salvar());
+    form.addEventListener('change', () => salvar());
+    tbody.addEventListener('click', (ev) => { if (ev.target.closest('.btn-danger')) setTimeout(() => salvar(), 0); });
+
+    const btn = document.getElementById('btn-finalizar');
+    form.addEventListener('submit', (ev) => {
+        if (btn.disabled) { ev.preventDefault(); return; }   // clique duplo não lança a nota duas vezes
+        salvar(true);
+        btn.disabled = true; btn.textContent = 'Gravando...';
+    });
+    window.addEventListener('pageshow', () => { btn.disabled = false; btn.textContent = 'Finalizar Lançamento da Compra'; });
+
+    restaurar();
 })();
 </script>
 {% endblock %}
