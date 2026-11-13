@@ -80,6 +80,18 @@ def _whatsapp_loja(emp):
     return d if len(d) in (12, 13) else None
 
 
+DIAS_SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+
+
+def _quando(momento):
+    """'hoje às 18:00', 'amanhã às 18:00', 'sáb. às 18:00'"""
+    if momento is None:
+        return None
+    dias = (momento.date() - agora().date()).days
+    dia = 'hoje' if dias == 0 else 'amanhã' if dias == 1 else DIAS_SEMANA[momento.weekday()] + '.'
+    return f'{dia} às {momento.strftime("%H:%M")}'
+
+
 def _pix_ok(emp):
     return bool(emp.pix_chave and emp.pix_nome and emp.pix_cidade)
 
@@ -97,8 +109,9 @@ def _cabecalhos(resp):
 @bp.route('/')
 def index():
     emp = Empresa.atual()
-    if not emp.loja_aberta:
-        return render_template('loja/fechada.html', empresa=emp), 503
+    aberta, proxima = emp.loja_situacao()
+    if not aberta:
+        return render_template('loja/fechada.html', empresa=emp, proxima=_quando(proxima)), 503
     itens = _vitrine()
     categorias = list(dict.fromkeys(i['categoria'] for i in itens))
     pagamentos = [p for p in PAGAMENTOS if p != 'Pix' or _pix_ok(emp)]
@@ -116,8 +129,10 @@ def foto(id):
 @bp.route('/pedido', methods=['POST'])
 def fazer_pedido():
     emp = Empresa.atual()
-    if not emp.loja_aberta:
-        return jsonify(erro='A loja está fechada no momento.'), 503
+    aberta, proxima = emp.loja_situacao()
+    if not aberta:
+        msg = 'A loja acabou de fechar.' + (f' Abrimos {_quando(proxima)}.' if proxima else '')
+        return jsonify(erro=msg), 503
     dados = request.get_json(silent=True) or {}
     if dados.get('site'):                       # campo isca: só robô preenche
         return jsonify(erro='Pedido recusado.'), 400
@@ -215,7 +230,23 @@ def ver_pedido(codigo):
 def config():
     emp = Empresa.atual()
     if request.method == 'POST':
-        emp.loja_aberta = request.form.get('loja_aberta') == '1'
+        modo = request.form.get('loja_modo')
+        if modo in ('auto', 'aberta', 'fechada'):
+            emp.loja_modo = modo
+        try:
+            abre = datetime.strptime(request.form.get('loja_abre') or '', '%H:%M').time()
+            fecha = datetime.strptime(request.form.get('loja_fecha') or '', '%H:%M').time()
+        except ValueError:
+            flash('Horário de abrir/fechar inválido.', 'danger')
+            return redirect(url_for('loja_admin.config'))
+        if abre == fecha:
+            flash('O horário de abrir e de fechar não podem ser iguais.', 'danger')
+            return redirect(url_for('loja_admin.config'))
+        dias = ''.join(sorted({d for d in request.form.getlist('loja_dias') if d in '0123456' and len(d) == 1}))
+        if emp.loja_modo == 'auto' and not dias:
+            flash('No automático, marque pelo menos um dia da semana.', 'danger')
+            return redirect(url_for('loja_admin.config'))
+        emp.loja_abre, emp.loja_fecha, emp.loja_dias = abre, fecha, dias or emp.loja_dias
         emp.loja_aviso = (request.form.get('loja_aviso') or '').strip()[:300] or None
         emp.loja_horario = (request.form.get('loja_horario') or '').strip()[:60] or None
         zap = re.sub(r'\D', '', request.form.get('loja_whatsapp') or '')
@@ -230,8 +261,10 @@ def config():
         emp.pix_nome = (request.form.get('pix_nome') or '').strip()[:25] or None
         emp.pix_cidade = (request.form.get('pix_cidade') or '').strip()[:15] or None
         db.session.commit()
-        flash('Loja ' + ('ABERTA: os clientes já podem pedir.' if emp.loja_aberta else 'fechada (ninguém consegue pedir).'),
-              'success' if emp.loja_aberta else 'info')
+        aberta, proxima = emp.loja_situacao()
+        msg = {'auto': 'Automático: ' + ('aberta agora.' if aberta else f'fechada agora, abre {_quando(proxima)}.'),
+               'aberta': 'Loja ABERTA até você fechar.', 'fechada': 'Loja FECHADA até você abrir.'}[emp.loja_modo]
+        flash('Salvo. ' + msg, 'success' if aberta else 'info')
         return redirect(url_for('loja_admin.config'))
 
     livre = estoque_livre()
@@ -247,7 +280,9 @@ def config():
     exemplo_pix = None
     if _pix_ok(emp):
         exemplo_pix = pix.payload(emp.pix_chave, emp.pix_nome, emp.pix_cidade, 1.00, txid='TESTE')
-    return render_template('loja_admin.html', empresa=emp, linhas=linhas, filtro=filtro, na_vitrine=na_vitrine,
+    aberta, proxima = emp.loja_situacao()
+    return render_template('loja_admin.html', empresa=emp, linhas=linhas, aberta=aberta, proxima=_quando(proxima),
+                           DIAS=DIAS_SEMANA, filtro=filtro, na_vitrine=na_vitrine,
                            exemplo_pix=exemplo_pix, qr_exemplo=pix.qr_svg(exemplo_pix) if exemplo_pix else None)
 
 

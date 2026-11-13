@@ -1,7 +1,8 @@
 # Local: app/models.py
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -245,13 +246,44 @@ class Empresa(db.Model):
     saldo_inicial = db.Column(db.Float, nullable=False, default=0.0)   # dinheiro em caixa/banco antes dos lançamentos
     prazo_cartao = db.Column(db.Integer, nullable=False, default=1)    # D+N: dias até a maquininha depositar
     # loja online (/loja)
-    loja_aberta = db.Column(db.Boolean, nullable=False, default=False)
+    # auto = abre/fecha sozinha no horário; aberta / fechada = manual, até mudar de novo
+    loja_modo = db.Column(db.String(10), nullable=False, default='fechada')
+    loja_abre = db.Column(db.Time, nullable=False, default=time(18, 0))
+    loja_fecha = db.Column(db.Time, nullable=False, default=time(23, 0))    # antes de abrir = vira a meia-noite
+    loja_dias = db.Column(db.String(7), nullable=False, default='0123456')  # 0=segunda … 6=domingo
     loja_aviso = db.Column(db.String(300), nullable=True)      # recado no topo da loja ("entregas sáb. à tarde")
     loja_horario = db.Column(db.String(60), nullable=True, default='18:00 às 23:00')   # horário das entregas
     loja_whatsapp = db.Column(db.String(13), nullable=True)    # só dígitos com DDD; recebe o aviso de pedido novo
     pix_chave = db.Column(db.String(77), nullable=True)
     pix_nome = db.Column(db.String(25), nullable=True)         # nome do recebedor (aparece no app do banco)
     pix_cidade = db.Column(db.String(15), nullable=True)
+
+    def loja_situacao(self, agora=None):
+        """(aberta_agora, próxima_abertura | None) conforme o modo e o horário."""
+        agora = agora or datetime.now(ZoneInfo('America/Sao_Paulo')).replace(tzinfo=None)
+        if self.loja_modo == 'aberta':
+            return True, None
+        if self.loja_modo != 'auto':
+            return False, None
+        dias = {int(d) for d in (self.loja_dias or '') if d.isdigit()}
+        t, hoje, ontem = agora.time(), agora.weekday(), (agora.weekday() - 1) % 7
+        abre, fecha = self.loja_abre, self.loja_fecha
+        if abre < fecha:
+            aberta = hoje in dias and abre <= t < fecha
+        else:                                  # ex.: 20:00 às 02:00
+            aberta = (hoje in dias and t >= abre) or (ontem in dias and t < fecha)
+        if aberta:
+            return True, None
+        for i in range(8):
+            dia = (agora + timedelta(days=i)).date()
+            inicio = datetime.combine(dia, abre)
+            if dia.weekday() in dias and inicio > agora:
+                return False, inicio
+        return False, None
+
+    @property
+    def loja_aberta(self):
+        return self.loja_situacao()[0]
 
     @classmethod
     def atual(cls):

@@ -178,3 +178,4 @@ legend { font-size: .9rem; font-weight: 600; color: var(--cacau-700); margin-bot
 .horario small { display: block; opacity: .85; font-size: .82rem; }
 .horario-pedido { margin: 12px 0 0; }
 .lembrete-horario { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--creme-2); color: var(--cacau-700); font-size: .9rem; }
+.reabre { font-size: 1.15rem; color: var(--cacau-800) !important; }

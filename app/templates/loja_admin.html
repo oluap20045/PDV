@@ -8,19 +8,40 @@
         </div>
     </div>
 
-    <div class="alert {{ 'alert-success' if empresa.loja_aberta else 'alert-secondary' }} d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="alert {{ 'alert-success' if aberta else 'alert-secondary' }} d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-            {% if empresa.loja_aberta %}<strong>Loja aberta.</strong>{% else %}<strong>Loja fechada:</strong> os clientes veem um aviso e não conseguem pedir.{% endif %}
-            {{ na_vitrine }} produto(s) na vitrine agora (com estoque livre, preço e marcados para a loja).
+            {% if aberta %}<strong>Loja aberta agora</strong>{% else %}<strong>Loja fechada agora</strong>{% endif %}
+            {%- if empresa.loja_modo == 'auto' %} (automático{% if proxima %}: abre {{ proxima }}{% endif %}){% else %} (manual, até você mudar){% endif %}.
+            {{ na_vitrine }} produto(s) na vitrine (com estoque livre, preço e marcados para a loja).
         </div>
     </div>
 
     <form method="POST" class="row g-3 mb-4">
         <div class="col-12">
-            <div class="form-check form-switch fs-5">
-                <input class="form-check-input" type="checkbox" role="switch" id="loja_aberta" name="loja_aberta" value="1" {{ 'checked' if empresa.loja_aberta }}>
-                <label class="form-check-label" for="loja_aberta">Loja aberta para pedidos</label>
+            <label class="form-label d-block">Funcionamento</label>
+            <div class="btn-group flex-wrap" role="group" aria-label="Funcionamento da loja">
+                {% for k, rot in [('auto', '⏰ Automático'), ('aberta', '🟢 Aberta'), ('fechada', '🔴 Fechada')] %}
+                <input type="radio" class="btn-check" name="loja_modo" id="modo-{{ k }}" value="{{ k }}" {{ 'checked' if empresa.loja_modo == k }}>
+                <label class="btn btn-outline-success" for="modo-{{ k }}">{{ rot }}</label>
+                {% endfor %}
             </div>
+            <div class="form-text">Automático abre e fecha sozinha no horário abaixo. Aberta/Fechada é manual: fica assim até você mudar
+                (ex.: viajou, acabou o estoque) — depois é só voltar para Automático.</div>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="loja_abre">Abre às</label>
+            <input type="time" class="form-control" id="loja_abre" name="loja_abre" value="{{ empresa.loja_abre.strftime('%H:%M') }}" required>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="loja_fecha">Fecha às</label>
+            <input type="time" class="form-control" id="loja_fecha" name="loja_fecha" value="{{ empresa.loja_fecha.strftime('%H:%M') }}" required>
+        </div>
+        <div class="col-12 col-md-8">
+            <label class="form-label d-block">Dias</label>
+            {% for d in DIAS %}
+            <input type="checkbox" class="btn-check" name="loja_dias" id="dia-{{ loop.index0 }}" value="{{ loop.index0 }}" {{ 'checked' if loop.index0|string in empresa.loja_dias }}>
+            <label class="btn btn-sm btn-outline-secondary mb-1" for="dia-{{ loop.index0 }}">{{ d }}</label>
+            {% endfor %}
         </div>
         <div class="col-12 col-md-4">
             <label class="form-label" for="loja_horario">Horário das entregas</label>
