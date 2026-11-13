@@ -22,7 +22,16 @@
                 <label class="form-check-label" for="loja_aberta">Loja aberta para pedidos</label>
             </div>
         </div>
-        <div class="col-12">
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="loja_horario">Horário das entregas</label>
+            <div class="input-group">
+                <span class="input-group-text">das</span>
+                <input type="text" class="form-control" id="loja_horario" name="loja_horario" maxlength="60"
+                       value="{{ empresa.loja_horario or '' }}" placeholder="18:00 às 23:00">
+            </div>
+            <div class="form-text">Aparece em destaque no topo da loja, no carrinho e no pedido.</div>
+        </div>
+        <div class="col-12 col-md-8">
             <label class="form-label" for="loja_aviso">Recado no topo da loja</label>
             <input type="text" class="form-control" id="loja_aviso" name="loja_aviso" maxlength="300" value="{{ empresa.loja_aviso or '' }}"
                    placeholder="Ex.: entregas de segunda a sábado, das 18h às 21h, só aqui no condomínio">

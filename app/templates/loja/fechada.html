@@ -4,5 +4,6 @@
         <div class="vazio-icone" aria-hidden="true">🍫</div>
         <h1>Loja fechada no momento</h1>
         <p>{{ empresa.loja_aviso or 'Volte mais tarde: logo tem chocolate fresquinho por aqui.' }}</p>
+        {% if empresa.loja_horario %}<p><strong>Entregas das {{ empresa.loja_horario }}.</strong></p>{% endif %}
     </section>
 {% endblock %}

@@ -5,6 +5,10 @@
     </button>
 {% endblock %}
 {% block content %}
+    {% if empresa.loja_horario %}
+    <div class="horario"><span aria-hidden="true">🛵</span><div><strong>Entregas das {{ empresa.loja_horario }}</strong>
+        <small>Peça a qualquer hora: entregamos no seu apartamento nesse horário.</small></div></div>
+    {% endif %}
     {% if empresa.loja_aviso %}<div class="aviso">{{ empresa.loja_aviso }}</div>{% endif %}
 
     {% if not itens %}
@@ -77,6 +81,7 @@
             <label>Observação <small>(opcional)</small>
                 <input name="observacao" maxlength="255" placeholder="Ex.: entregar depois das 18h"></label>
             <input name="site" class="isca" tabindex="-1" autocomplete="off" aria-hidden="true">
+            {% if empresa.loja_horario %}<p class="lembrete-horario">🛵 Entregamos das <strong>{{ empresa.loja_horario }}</strong>.</p>{% endif %}
             <p id="erro" class="erro" role="alert" hidden></p>
             <button type="submit" class="enviar" id="enviar">Fazer pedido</button>
         </form>

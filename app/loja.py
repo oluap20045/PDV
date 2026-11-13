@@ -200,7 +200,10 @@ def ver_pedido(codigo):
         linhas = [f'Olá! Fiz o pedido #{pedido.id} na loja:']
         linhas += [f'• {it.quantidade}x {it.produto.nome}' for it in pedido.itens]
         linhas += [f'Total: R$ {pedido.total:.2f}'.replace('.', ','), f'Entrega: {pedido.entrega}',
-                   f'Pagamento: {pedido.pagamento}', '', 'https://' + request.host + url_for('loja.ver_pedido', codigo=codigo)]
+                   f'Pagamento: {pedido.pagamento}']
+        if emp.loja_horario:
+            linhas.append(f'Entregas: das {emp.loja_horario}')
+        linhas += ['', 'https://' + request.host + url_for('loja.ver_pedido', codigo=codigo)]
         link_zap = f'https://wa.me/{zap}?text={quote(chr(10).join(linhas))}'
     return render_template('loja/pedido.html', pedido=pedido, empresa=emp, pix_txt=pix_txt, qr=qr,
                            link_zap=link_zap, STATUS=STATUS_CLIENTE, novo=request.args.get('novo') == '1')
@@ -214,6 +217,7 @@ def config():
     if request.method == 'POST':
         emp.loja_aberta = request.form.get('loja_aberta') == '1'
         emp.loja_aviso = (request.form.get('loja_aviso') or '').strip()[:300] or None
+        emp.loja_horario = (request.form.get('loja_horario') or '').strip()[:60] or None
         zap = re.sub(r'\D', '', request.form.get('loja_whatsapp') or '')
         if zap.startswith('55') and len(zap) in (12, 13):
             zap = zap[2:]

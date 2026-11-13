@@ -247,6 +247,7 @@ class Empresa(db.Model):
     # loja online (/loja)
     loja_aberta = db.Column(db.Boolean, nullable=False, default=False)
     loja_aviso = db.Column(db.String(300), nullable=True)      # recado no topo da loja ("entregas sáb. à tarde")
+    loja_horario = db.Column(db.String(60), nullable=True, default='18:00 às 23:00')   # horário das entregas
     loja_whatsapp = db.Column(db.String(13), nullable=True)    # só dígitos com DDD; recebe o aviso de pedido novo
     pix_chave = db.Column(db.String(77), nullable=True)
     pix_nome = db.Column(db.String(25), nullable=True)         # nome do recebedor (aparece no app do banco)

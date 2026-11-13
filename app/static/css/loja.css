@@ -167,3 +167,14 @@ legend { font-size: .9rem; font-weight: 600; color: var(--cacau-700); margin-bot
     background: #1f9d55; color: #fff; font-weight: 700; margin-bottom: 14px;
 }
 .voltar { display: block; text-align: center; color: var(--cacau-700); }
+
+/* horário de entrega: sempre em destaque */
+.horario {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 12px 14px;
+    border-radius: 14px; background: var(--cacau-800); color: var(--creme);
+}
+.horario > span { font-size: 1.6rem; }
+.horario strong { display: block; font-size: 1.05rem; }
+.horario small { display: block; opacity: .85; font-size: .82rem; }
+.horario-pedido { margin: 12px 0 0; }
+.lembrete-horario { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--creme-2); color: var(--cacau-700); font-size: .9rem; }
