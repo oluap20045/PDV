@@ -82,8 +82,8 @@
             <details>
                 <summary class="small">Testar o Pix (R$ 1,00) — leia com o app do banco e confira o recebedor antes de abrir a loja</summary>
                 <div class="d-flex flex-wrap gap-3 align-items-center mt-2">
-                    <div style="width:160px">{{ qr_exemplo|safe }}</div>
-                    <code class="small text-break" style="max-width:420px">{{ exemplo_pix }}</code>
+                    <div class="qr-teste">{{ qr_exemplo|safe }}</div>
+                    <code class="small text-break flex-grow-1" style="min-width:0;max-width:420px">{{ exemplo_pix }}</code>
                 </div>
             </details>
         </div>
@@ -138,6 +138,8 @@
         display: grid; place-items: center; text-align: center; line-height: 1.1; }
     .foto-loja img { width: 100%; height: 100%; object-fit: cover; }
     .min-w-0 { min-width: 0; }
+    .qr-teste { width: 200px; flex: none; background: #fff; padding: 6px; border-radius: 8px; }
+    .qr-teste svg { display: block; width: 100%; height: auto; }
 </style>
 {% endblock %}
 {% block scripts %}

@@ -55,4 +55,4 @@ def payload(chave, nome, cidade, valor, txid='***'):
 
 def qr_svg(texto):
     import segno
-    return segno.make(texto, error='m').svg_inline(scale=5, border=2, dark='#2b1a10')
+    return segno.make(texto, error='m').svg_inline(scale=5, border=2, dark='#2b1a10', omitsize=True)   # viewBox: escala com o CSS
