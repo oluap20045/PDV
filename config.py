@@ -25,5 +25,6 @@ class Config:
     MAX_CONTENT_LENGTH = 80 * 1024 * 1024
     MAX_FORM_PARTS = 5000
 
-    # nome público da loja (ex.: loja.seudominio.com.br): nesse endereço só /loja responde
-    LOJA_HOST = (os.environ.get('LOJA_HOST') or '').strip().lower() or None
+    # nome(s) público(s) da loja, separados por vírgula (ex.: dominio.com.br,www.dominio.com.br):
+    # nesses endereços só /loja responde
+    LOJA_HOST = {h.strip().lower() for h in (os.environ.get('LOJA_HOST') or '').split(',') if h.strip()}
