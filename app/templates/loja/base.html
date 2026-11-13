@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#3b2314">
+    <meta name="robots" content="noindex">
+    <title>{% block titulo %}{{ empresa.nome }}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/loja.css') }}">
+</head>
+<body>
+    <header class="topo">
+        <a class="marca" href="{{ url_for('loja.index') }}"><span aria-hidden="true">🍫</span> {{ empresa.nome }}</a>
+        {% block topo_extra %}{% endblock %}
+    </header>
+    <main class="conteudo">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="rodape">
+        {{ empresa.nome }}{% if empresa.mensagem %} · {{ empresa.mensagem }}{% endif %}
+    </footer>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

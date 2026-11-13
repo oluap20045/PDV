@@ -1,0 +1,8 @@
+{% extends 'loja/base.html' %}
+{% block content %}
+    <section class="vazio">
+        <div class="vazio-icone" aria-hidden="true">🍫</div>
+        <h1>Loja fechada no momento</h1>
+        <p>{{ empresa.loja_aviso or 'Volte mais tarde: logo tem chocolate fresquinho por aqui.' }}</p>
+    </section>
+{% endblock %}

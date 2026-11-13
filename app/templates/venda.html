@@ -73,6 +73,7 @@
             {% if pedido %}
             <div class="alert alert-info py-2 small">Entrega do <strong>pedido #{{ pedido.id }}</strong>: o carrinho já veio com os itens
                 e preços combinados. Ao finalizar, o pedido fica como entregue.
+                {% if pedido.pagamento %}<br>🛒 Pedido da loja: o cliente escolheu <strong>{{ pedido.pagamento }}</strong>{% if pedido.entrega %} · entregar em <strong>{{ pedido.entrega }}</strong>{% endif %}.{% endif %}
                 <a href="{{ url_for('main.venda_pdv') }}">Sair do pedido</a></div>
             {% endif %}
             <div class="venda-para mb-2">Venda para <strong id="cliente-nome"></strong></div>

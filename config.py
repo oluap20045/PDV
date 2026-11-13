@@ -24,3 +24,6 @@ class Config:
     # upload da revista em PDF (~35 MB) e prévia com centenas de linhas
     MAX_CONTENT_LENGTH = 80 * 1024 * 1024
     MAX_FORM_PARTS = 5000
+
+    # nome público da loja (ex.: loja.seudominio.com.br): nesse endereço só /loja responde
+    LOJA_HOST = (os.environ.get('LOJA_HOST') or '').strip().lower() or None

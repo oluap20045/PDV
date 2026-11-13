@@ -1,0 +1,89 @@
+{% extends 'loja/base.html' %}
+{% block topo_extra %}
+    <button type="button" class="topo-carrinho" id="abrir-carrinho" aria-label="Abrir carrinho">
+        🛒 <span id="topo-qtd" class="selo" hidden>0</span>
+    </button>
+{% endblock %}
+{% block content %}
+    {% if empresa.loja_aviso %}<div class="aviso">{{ empresa.loja_aviso }}</div>{% endif %}
+
+    {% if not itens %}
+        <section class="vazio">
+            <div class="vazio-icone" aria-hidden="true">🍫</div>
+            <h1>Tudo vendido por enquanto!</h1>
+            <p>Logo tem mais. Fique de olho.</p>
+        </section>
+    {% else %}
+        {% if categorias|length > 1 %}
+        <nav class="categorias" aria-label="Categorias">
+            <button type="button" class="chip ativo" data-cat="">Tudo</button>
+            {% for c in categorias %}<button type="button" class="chip" data-cat="{{ c }}">{{ c }}</button>{% endfor %}
+        </nav>
+        {% endif %}
+
+        <div class="grade" id="grade">
+            {% for i in itens %}
+            <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}">
+                <div class="produto-foto">
+                    {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
+                    {% else %}<span aria-hidden="true">🍫</span>{% endif %}
+                </div>
+                <div class="produto-info">
+                    <h2>{{ i.nome }}</h2>
+                    {% if i.descricao %}<p class="desc">{{ i.descricao }}</p>{% endif %}
+                    <div class="produto-rodape">
+                        <strong class="preco">R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</strong>
+                        <div class="qtd" data-controle="{{ i.id }}">
+                            <button type="button" class="adicionar">Adicionar</button>
+                        </div>
+                    </div>
+                    {% if i.max <= 3 %}<p class="poucos">Só {{ i.max }} disponíve{{ 'l' if i.max == 1 else 'is' }}</p>{% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- barra fixa com o total -->
+    <button type="button" class="barra-carrinho" id="barra" hidden>
+        <span><span id="barra-qtd">0</span> item(ns)</span>
+        <strong>Ver carrinho · R$ <span id="barra-total">0,00</span></strong>
+    </button>
+
+    <!-- carrinho + dados de entrega -->
+    <dialog id="carrinho" class="painel-carrinho" aria-labelledby="carrinho-titulo">
+        <form method="dialog" class="painel-topo">
+            <h2 id="carrinho-titulo">Seu pedido</h2>
+            <button class="fechar" aria-label="Fechar">✕</button>
+        </form>
+        <div id="carrinho-itens" class="carrinho-itens"></div>
+        <div class="carrinho-total">Total <strong>R$ <span id="carrinho-total">0,00</span></strong></div>
+
+        <form id="form-pedido" class="form-pedido" novalidate>
+            <label>Seu nome
+                <input name="nome" autocomplete="name" required maxlength="150"></label>
+            <label>WhatsApp (com DDD)
+                <input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="(41) 99999-9999" required></label>
+            <label>Bloco e apartamento
+                <input name="entrega" required maxlength="120" placeholder="Bloco 3, apto 42"></label>
+            <fieldset>
+                <legend>Pagamento</legend>
+                <div class="opcoes">
+                {% for p in pagamentos %}
+                    <label class="opcao"><input type="radio" name="pagamento" value="{{ p }}" {{ 'checked' if loop.first }}> {{ p }}</label>
+                {% endfor %}
+                </div>
+            </fieldset>
+            <label>Observação <small>(opcional)</small>
+                <input name="observacao" maxlength="255" placeholder="Ex.: entregar depois das 18h"></label>
+            <input name="site" class="isca" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <p id="erro" class="erro" role="alert" hidden></p>
+            <button type="submit" class="enviar" id="enviar">Fazer pedido</button>
+        </form>
+    </dialog>
+
+    <script type="application/json" id="dados-produtos">{{ itens|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/loja.js') }}"></script>
+{% endblock %}

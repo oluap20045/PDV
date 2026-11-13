@@ -1,0 +1,53 @@
+{% extends 'loja/base.html' %}
+{% block titulo %}Pedido #{{ pedido.id }} · {{ empresa.nome }}{% endblock %}
+{% block content %}
+    <section class="cartao">
+        {% if novo %}
+            <div class="sucesso"><span aria-hidden="true">🎉</span> Pedido recebido! Guarde este link para acompanhar.</div>
+        {% endif %}
+        <div class="pedido-cabecalho">
+            <h1>Pedido #{{ pedido.id }}</h1>
+            <span class="status status-{{ pedido.status }}">{{ STATUS[pedido.status] }}</span>
+        </div>
+        <p class="sub">{{ pedido.criado_em.strftime('%d/%m às %H:%M') }} · Entrega: {{ pedido.entrega }} · {{ pedido.pagamento }}</p>
+
+        <ul class="lista-itens">
+            {% for it in pedido.itens %}
+            <li><span>{{ it.quantidade }}× {{ it.produto.nome }}</span>
+                <span>R$ {{ ('%.2f'|format(it.quantidade * it.preco_unitario)).replace('.', ',') }}</span></li>
+            {% endfor %}
+            <li class="total"><span>Total</span><strong>R$ {{ ('%.2f'|format(pedido.total)).replace('.', ',') }}</strong></li>
+        </ul>
+    </section>
+
+    {% if pix_txt %}
+    <section class="cartao pix">
+        <h2>Pague com Pix</h2>
+        <p class="sub">Abra o app do banco e leia o QR Code, ou copie o código.</p>
+        <div class="qr" role="img" aria-label="QR Code do Pix">{{ qr|safe }}</div>
+        <textarea id="pix" readonly rows="3" aria-label="Pix copia e cola">{{ pix_txt }}</textarea>
+        <button type="button" class="enviar" id="copiar">Copiar código Pix</button>
+        <p class="sub">Recebedor: {{ empresa.pix_nome }}. Depois de pagar, mande o comprovante no WhatsApp.</p>
+    </section>
+    {% endif %}
+
+    {% if link_zap and pedido.status == 'aberto' %}
+    <a class="botao-zap" href="{{ link_zap }}" target="_blank" rel="noopener">
+        <span aria-hidden="true">💬</span> {{ 'Avisar no WhatsApp' if novo else 'Falar no WhatsApp' }}</a>
+    {% endif %}
+
+    <a class="voltar" href="{{ url_for('loja.index') }}">← Voltar para a loja</a>
+{% endblock %}
+{% block scripts %}
+{% if pix_txt %}
+<script>
+document.getElementById('copiar').addEventListener('click', async function () {
+    const t = document.getElementById('pix');
+    try { await navigator.clipboard.writeText(t.value); }
+    catch (e) { t.select(); document.execCommand('copy'); }
+    this.textContent = 'Copiado ✓';
+    setTimeout(() => { this.textContent = 'Copiar código Pix'; }, 2500);
+});
+</script>
+{% endif %}
+{% endblock %}

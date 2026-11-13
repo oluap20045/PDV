@@ -119,3 +119,14 @@ Reiniciar os serviços após uma alteração no código Python:
 Bash
 
 docker compose restart
+
+## Loja online (`/loja`)
+
+Vitrine pública para os clientes do condomínio pedirem pelo celular. O pedido entra em **Pedidos** (selo 🛒 no menu),
+reserva o estoque e é entregue/cobrado pelo PDV como qualquer pedido.
+
+- Configuração em **Loja online** (menu): abrir/fechar, recado, WhatsApp que recebe os pedidos, chave Pix (QR Code
+  "copia e cola" com o valor do pedido) e fotos/descrição/visibilidade de cada produto.
+- Aparece na vitrine: produto marcado "Mostrar na loja", com preço e com estoque livre (estoque − reservas).
+- Publicação: Cloudflare Tunnel (`cloudflared`) → Caddy → app. Defina `LOJA_HOST` no `.env` com o nome público:
+  nesse endereço só `/loja` responde; login e sistema interno dão 404 (continuam só na rede local / ZeroTier).

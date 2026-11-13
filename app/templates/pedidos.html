@@ -28,6 +28,7 @@
         <div class="card mb-3 {{ 'border-warning' if ns.falta else ('border-success' if p.status == 'aberto') }}">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
+                    {% if p.origem == 'loja' %}<span class="badge bg-warning text-dark" title="Feito pelo cliente na loja online">🛒 Loja</span>{% endif %}
                     <strong>#{{ p.id }} · {{ p.cliente.nome }}</strong>
                     <span class="small text-muted">· feito em {{ p.criado_em.strftime('%d/%m %H:%M') }}{% if p.usuario %} por {{ p.usuario.nome.split()[0] }}{% endif %}</span>
                     {% if p.previsao %}
@@ -45,6 +46,14 @@
                 </div>
             </div>
             <div class="card-body py-2">
+                {% if p.origem == 'loja' %}
+                <div class="small mb-2 d-flex flex-wrap gap-3">
+                    <span>📍 {{ p.entrega }}</span>
+                    <span>💳 {{ p.pagamento }}</span>
+                    {% if p.cliente.whatsapp %}<a href="https://wa.me/55{{ p.cliente.whatsapp }}" target="_blank" rel="noopener">💬 {{ p.cliente.whatsapp|telefone }}</a>{% endif %}
+                    <a href="{{ url_for('loja.ver_pedido', codigo=p.codigo) }}" target="_blank" rel="noopener">página do cliente ↗</a>
+                </div>
+                {% endif %}
                 {% if p.observacao %}<div class="small mb-2">📝 {{ p.observacao }}</div>{% endif %}
                 <div class="table-responsive">
                 <table class="table table-sm align-middle mb-2">

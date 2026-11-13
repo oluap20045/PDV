@@ -28,9 +28,25 @@ class Produto(db.Model):
     codigo_barras = db.Column(db.String(50), unique=True, nullable=True, index=True)
     codigo_fornecedor = db.Column(db.String(20), unique=True, nullable=True)   # ex.: código Cacau Show do catálogo
     categoria = db.Column(db.String(60), nullable=True)
+    na_loja = db.Column(db.Boolean, nullable=False, default=True)    # aparece na loja online (se tiver estoque livre)
+    descricao = db.Column(db.String(300), nullable=True)             # texto curto na loja online
+    foto = db.relationship('ProdutoFoto', uselist=False, lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'<Produto {self.nome}>'
+
+
+class ProdutoFoto(db.Model):
+    """Foto do produto para a loja online. Fica no banco (entra no backup diário junto com o resto)."""
+    __tablename__ = 'produto_foto'
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), primary_key=True)
+    dados = db.Column(db.LargeBinary(length=4 * 1024 * 1024), nullable=False)   # MEDIUMBLOB no MariaDB
+    mime = db.Column(db.String(20), nullable=False)
+    atualizado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
+    @property
+    def versao(self):
+        return int(self.atualizado_em.timestamp())
 
 class Venda(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -228,6 +244,13 @@ class Empresa(db.Model):
     cadastro_aberto = db.Column(db.Boolean, nullable=False, default=True)   # "Criar conta" na tela de login
     saldo_inicial = db.Column(db.Float, nullable=False, default=0.0)   # dinheiro em caixa/banco antes dos lançamentos
     prazo_cartao = db.Column(db.Integer, nullable=False, default=1)    # D+N: dias até a maquininha depositar
+    # loja online (/loja)
+    loja_aberta = db.Column(db.Boolean, nullable=False, default=False)
+    loja_aviso = db.Column(db.String(300), nullable=True)      # recado no topo da loja ("entregas sáb. à tarde")
+    loja_whatsapp = db.Column(db.String(13), nullable=True)    # só dígitos com DDD; recebe o aviso de pedido novo
+    pix_chave = db.Column(db.String(77), nullable=True)
+    pix_nome = db.Column(db.String(25), nullable=True)         # nome do recebedor (aparece no app do banco)
+    pix_cidade = db.Column(db.String(15), nullable=True)
 
     @classmethod
     def atual(cls):
@@ -287,6 +310,11 @@ class Pedido(db.Model):
     status = db.Column(db.String(12), nullable=False, default='aberto', index=True)   # aberto | entregue | cancelado
     venda_id = db.Column(db.Integer, db.ForeignKey('venda.id'), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)
+    # pedidos feitos pela loja online
+    origem = db.Column(db.String(10), nullable=False, default='balcao', index=True)   # balcao | loja
+    codigo = db.Column(db.String(16), nullable=True, unique=True)    # link do cliente: /loja/p/<codigo>
+    entrega = db.Column(db.String(120), nullable=True)               # bloco/apto
+    pagamento = db.Column(db.String(30), nullable=True)              # como o cliente disse que vai pagar
     cliente = db.relationship('Cliente')
     venda = db.relationship('Venda')
     usuario = db.relationship('Usuario')

@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">Loja online</h2>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('pedidos.pedidos') }}" class="btn btn-outline-secondary">Pedidos</a>
+            <a href="{{ url_for('loja.index') }}" target="_blank" rel="noopener" class="btn btn-outline-success">Abrir a loja ↗</a>
+        </div>
+    </div>
+
+    <div class="alert {{ 'alert-success' if empresa.loja_aberta else 'alert-secondary' }} d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            {% if empresa.loja_aberta %}<strong>Loja aberta.</strong>{% else %}<strong>Loja fechada:</strong> os clientes veem um aviso e não conseguem pedir.{% endif %}
+            {{ na_vitrine }} produto(s) na vitrine agora (com estoque livre, preço e marcados para a loja).
+        </div>
+    </div>
+
+    <form method="POST" class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="form-check form-switch fs-5">
+                <input class="form-check-input" type="checkbox" role="switch" id="loja_aberta" name="loja_aberta" value="1" {{ 'checked' if empresa.loja_aberta }}>
+                <label class="form-check-label" for="loja_aberta">Loja aberta para pedidos</label>
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="loja_aviso">Recado no topo da loja</label>
+            <input type="text" class="form-control" id="loja_aviso" name="loja_aviso" maxlength="300" value="{{ empresa.loja_aviso or '' }}"
+                   placeholder="Ex.: entregas de segunda a sábado, das 18h às 21h, só aqui no condomínio">
+        </div>
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="loja_whatsapp">WhatsApp que recebe os pedidos</label>
+            <input type="tel" class="form-control" id="loja_whatsapp" name="loja_whatsapp" placeholder="(41) 99999-9999"
+                   value="{{ (empresa.loja_whatsapp or '')|telefone }}">
+            <div class="form-text">Depois de pedir, o cliente tem um botão para te avisar aqui. Vazio = usa o telefone da Empresa.</div>
+        </div>
+        <div class="col-12 col-md-4">
+            <label class="form-label" for="pix_chave">Chave Pix</label>
+            <input type="text" class="form-control" id="pix_chave" name="pix_chave" maxlength="77" value="{{ empresa.pix_chave or '' }}"
+                   placeholder="CPF, CNPJ, e-mail, +55 telefone ou aleatória">
+            <div class="form-text">Telefone: escreva com +55 ou (DDD), senão 11 dígitos viram CPF.</div>
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="pix_nome">Nome no Pix</label>
+            <input type="text" class="form-control" id="pix_nome" name="pix_nome" maxlength="25" value="{{ empresa.pix_nome or '' }}">
+        </div>
+        <div class="col-6 col-md-2">
+            <label class="form-label" for="pix_cidade">Cidade</label>
+            <input type="text" class="form-control" id="pix_cidade" name="pix_cidade" maxlength="15" value="{{ empresa.pix_cidade or '' }}">
+        </div>
+        {% if exemplo_pix %}
+        <div class="col-12">
+            <details>
+                <summary class="small">Testar o Pix (R$ 1,00) — leia com o app do banco e confira o recebedor antes de abrir a loja</summary>
+                <div class="d-flex flex-wrap gap-3 align-items-center mt-2">
+                    <div style="width:160px">{{ qr_exemplo|safe }}</div>
+                    <code class="small text-break" style="max-width:420px">{{ exemplo_pix }}</code>
+                </div>
+            </details>
+        </div>
+        {% else %}
+        <div class="col-12 small text-muted">Sem chave, nome e cidade do Pix a loja só oferece pagamento na entrega.</div>
+        {% endif %}
+        <div class="col-12"><button type="submit" class="btn btn-primary">Salvar</button></div>
+    </form>
+
+    <h4>Produtos na loja</h4>
+    <p class="small text-muted">Aparece na loja quem está marcado, tem preço e tem <strong>estoque livre</strong> (estoque menos o que já está reservado para pedidos).
+        A foto é reduzida no próprio aparelho antes de enviar — pode tirar direto com a câmera do celular.</p>
+    <ul class="nav nav-pills mb-3 small">
+        {% for k, rot in [('estoque', 'Com estoque'), ('sem-foto', 'Com estoque, sem foto'), ('todos', 'Todos')] %}
+        <li class="nav-item"><a class="nav-link py-1 {{ 'active' if filtro == k }}" href="{{ url_for('loja_admin.config', ver=k) }}">{{ rot }}</a></li>
+        {% endfor %}
+    </ul>
+
+    <div class="row g-3">
+    {% for l in linhas %}
+        {% set p = l.p %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card h-100 produto-loja" data-url="{{ url_for('loja_admin.salvar_produto', id=p.id) }}">
+                <div class="card-body d-flex gap-3">
+                    <label class="foto-loja flex-shrink-0" title="Trocar foto">
+                        {% if p.foto %}<img src="{{ url_for('loja.foto', id=p.id, v=p.foto.versao) }}" alt="">{% else %}<span>📷<br><small>foto</small></span>{% endif %}
+                        <input type="file" accept="image/*" class="d-none entrada-foto">
+                    </label>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fw-semibold text-truncate" title="{{ p.nome }}">{{ p.nome }}</div>
+                        <div class="small text-muted">R$ {{ '%.2f'|format(p.preco) }} · estoque {{ p.quantidade }}{% if l.livre != p.quantidade %} ({{ l.livre }} livre){% endif %}{% if p.categoria %} · {{ p.categoria }}{% endif %}</div>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input na-loja" type="checkbox" id="na-loja-{{ p.id }}" {{ 'checked' if p.na_loja }}>
+                            <label class="form-check-label small" for="na-loja-{{ p.id }}">Mostrar na loja</label>
+                        </div>
+                        <input type="text" class="form-control form-control-sm mt-1 descricao" maxlength="300" placeholder="Descrição curta (opcional)"
+                               value="{{ p.descricao or '' }}" aria-label="Descrição de {{ p.nome }}">
+                        <div class="small mt-1 estado" aria-live="polite">{% if p.foto %}<a href="#" class="tirar-foto text-danger">tirar foto</a>{% endif %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <p class="text-muted">Nenhum produto neste filtro.</p>
+    {% endfor %}
+    </div>
+{% endblock %}
+{% block head %}
+<style>
+    .foto-loja { width: 84px; height: 84px; border-radius: 12px; overflow: hidden; cursor: pointer;
+        background: var(--folha-50, #f3f9ee); border: 1px dashed var(--folha-400, #8fc46e);
+        display: grid; place-items: center; text-align: center; line-height: 1.1; }
+    .foto-loja img { width: 100%; height: 100%; object-fit: cover; }
+    .min-w-0 { min-width: 0; }
+</style>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    // reduz a foto no aparelho (máx. 900 px, JPEG): foto de celular de 5 MB vira ~120 KB
+    function reduzir(arquivo) {
+        return new Promise((ok, falha) => {
+            const img = new Image();
+            img.onload = () => {
+                const lado = 900, esc = Math.min(1, lado / Math.max(img.width, img.height));
+                const c = document.createElement('canvas');
+                c.width = Math.round(img.width * esc); c.height = Math.round(img.height * esc);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                URL.revokeObjectURL(img.src);
+                c.toBlob(b => b ? ok(b) : falha(new Error('não deu para ler a imagem')), 'image/jpeg', 0.82);
+            };
+            img.onerror = () => falha(new Error('arquivo não é uma imagem'));
+            img.src = URL.createObjectURL(arquivo);
+        });
+    }
+
+    async function enviar(card, dados) {
+        const estado = card.querySelector('.estado');
+        estado.textContent = 'Salvando…';
+        try {
+            const r = await fetch(card.dataset.url, {method: 'POST', body: dados});
+            const resp = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(resp.erro || 'erro ao salvar');
+            estado.innerHTML = '<span class="text-success">Salvo ✓</span>';
+            return resp;
+        } catch (e) {
+            estado.innerHTML = '';
+            const s = document.createElement('span'); s.className = 'text-danger'; s.textContent = e.message;
+            estado.appendChild(s);
+            return null;
+        }
+    }
+
+    function salvarDados(card) {
+        const f = new FormData();
+        f.append('acao', 'dados');
+        if (card.querySelector('.na-loja').checked) f.append('na_loja', '1');
+        f.append('descricao', card.querySelector('.descricao').value);
+        return enviar(card, f);
+    }
+
+    document.querySelectorAll('.produto-loja').forEach(card => {
+        card.querySelector('.na-loja').addEventListener('change', () => salvarDados(card));
+        card.querySelector('.descricao').addEventListener('change', () => salvarDados(card));
+        card.querySelector('.entrada-foto').addEventListener('change', async ev => {
+            const arq = ev.target.files[0];
+            if (!arq) return;
+            try {
+                const f = new FormData();
+                f.append('acao', 'foto');
+                f.append('foto', await reduzir(arq), 'foto.jpg');
+                const resp = await enviar(card, f);
+                if (resp && resp.url) card.querySelector('.foto-loja').firstElementChild.outerHTML = `<img src="${resp.url}" alt="">`;
+            } catch (e) {
+                card.querySelector('.estado').textContent = e.message;
+            }
+            ev.target.value = '';
+        });
+        card.addEventListener('click', async ev => {
+            if (!ev.target.classList.contains('tirar-foto')) return;
+            ev.preventDefault();
+            if (!confirm('Tirar a foto deste produto?')) return;
+            const f = new FormData(); f.append('acao', 'tirar_foto');
+            if (await enviar(card, f)) card.querySelector('.foto-loja').firstElementChild.outerHTML = '<span>📷<br><small>foto</small></span>';
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -2,7 +2,7 @@
 import re
 from datetime import datetime
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
 from app import db
@@ -41,8 +41,17 @@ def nao_autorizado():
 
 
 def exigir_login():
-    """before_request da aplicação: tudo exige login, menos as rotas LIVRES."""
-    if request.endpoint in LIVRES or current_user.is_authenticated:
+    """before_request da aplicação: tudo exige login, menos as rotas LIVRES e a loja online.
+
+    No endereço público da loja (LOJA_HOST, o que chega pela internet) só existe a loja: o resto dá 404,
+    mesmo para quem tem login — o sistema interno continua só na rede de casa / ZeroTier."""
+    publico = request.blueprint == 'loja' or request.endpoint == 'static'
+    loja_host = current_app.config.get('LOJA_HOST')
+    if loja_host and request.host.split(':')[0].lower() == loja_host:
+        if request.path in ('/', ''):
+            return redirect('/loja/')
+        return None if publico else abort(404)
+    if publico or request.endpoint in LIVRES or current_user.is_authenticated:
         return None
     return login_manager.unauthorized()
 
