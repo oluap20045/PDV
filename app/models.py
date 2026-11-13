@@ -390,3 +390,42 @@ class OrdemCompraItem(db.Model):
     produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
     quantidade = db.Column(db.Integer, nullable=False)
     produto = db.relationship('Produto')
+
+
+# ---------------------------------------------------------------- Baixa de estoque (brinde, perda...)
+
+MOTIVOS_BAIXA = {
+    'brinde': 'Brinde',
+    'degustacao': 'Degustação',
+    'perda': 'Perda / avaria',
+    'vencido': 'Vencido',
+    'consumo': 'Consumo próprio',
+    'outro': 'Outro',
+}
+
+
+class BaixaEstoque(db.Model):
+    """Saída de estoque sem venda. Não gera lançamento financeiro (o custo já foi pago na compra):
+    só tira do estoque e registra o valor a custo, para saber quanto foi em brinde, perda etc."""
+    __tablename__ = 'baixa_estoque'
+    id = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.DateTime, nullable=False, index=True)
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False, index=True)
+    quantidade = db.Column(db.Integer, nullable=False)
+    custo_unitario = db.Column(db.Float, nullable=False, default=0.0)   # custo médio na hora da baixa
+    motivo = db.Column(db.String(20), nullable=False, index=True)      # chave de MOTIVOS_BAIXA
+    observacao = db.Column(db.String(255), nullable=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=True)   # brinde para quem
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)
+    estornada_em = db.Column(db.DateTime, nullable=True)                # desfeita: o estoque voltou
+    produto = db.relationship('Produto')
+    cliente = db.relationship('Cliente')
+    usuario = db.relationship('Usuario')
+
+    @property
+    def valor_custo(self):
+        return round(self.quantidade * (self.custo_unitario or 0), 2)
+
+    @property
+    def motivo_nome(self):
+        return MOTIVOS_BAIXA.get(self.motivo, self.motivo)

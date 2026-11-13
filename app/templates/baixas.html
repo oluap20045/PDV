@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% macro brl(v) %}R$ {{ ('{:,.2f}'.format(v)).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endmacro %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="mb-0">Baixa de estoque</h2>
+        <a href="{{ url_for('main.estoque') }}" class="btn btn-outline-secondary btn-sm">Voltar ao estoque</a>
+    </div>
+    <p class="text-muted small">Para o que sai sem venda: brinde, degustação, perda, vencido, consumo próprio.
+        O produto sai do estoque e o <strong>valor a custo</strong> fica registrado aqui.
+        <strong>Nada é lançado no financeiro</strong>: o custo já foi pago quando a mercadoria foi comprada.</p>
+
+    <form method="POST" id="form-baixa" class="card mb-4">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="motivo">Motivo</label>
+                    <select name="motivo" id="motivo" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        {% for k, v in motivos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4" id="box-cliente">
+                    <label class="form-label small mb-1" for="cliente_id">Para quem (opcional)</label>
+                    <select name="cliente_id" id="cliente_id" class="form-select">
+                        <option value="">—</option>
+                        {% for c in clientes %}<option value="{{ c.id }}">{{ c.nome }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="observacao">Observação</label>
+                    <input type="text" name="observacao" id="observacao" class="form-control" maxlength="255"
+                           placeholder="ex.: brinde na compra acima de R$ 100">
+                </div>
+            </div>
+            <div class="table-responsive">
+            <table class="table table-sm align-middle mb-2">
+                <thead><tr><th style="min-width: 120px">Código</th><th style="min-width: 220px">Produto</th><th style="width: 90px">Qtd</th><th class="text-end">A custo</th><th></th></tr></thead>
+                <tbody id="itens"></tbody>
+            </table>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <button type="button" id="add-item" class="btn btn-outline-secondary btn-sm">+ Produto</button>
+                <span class="ms-auto">Total a custo: <strong id="total">R$ 0,00</strong></span>
+                <button type="submit" class="btn btn-danger">Dar baixa</button>
+            </div>
+        </div>
+    </form>
+
+    <template id="tpl-item">
+        <tr>
+            <td><input type="text" class="form-control form-control-sm campo-codigo" inputmode="numeric" placeholder="Código" autocomplete="off" aria-label="Código">
+                <div class="small codigo-aviso"></div></td>
+            <td>
+                <select name="produto_id" class="form-select form-select-sm" aria-label="Produto">
+                    <option value="">Selecione...</option>
+                    {% for p in produtos %}<option value="{{ p.id }}">{{ p.nome }} (tem {{ p.quantidade }})</option>{% endfor %}
+                </select>
+            </td>
+            <td><input type="number" name="quantidade" class="form-control form-control-sm" min="1" value="1" aria-label="Quantidade"></td>
+            <td class="text-end text-nowrap subtotal"></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm remover" title="Remover" aria-label="Remover">✕</button></td>
+        </tr>
+    </template>
+
+    <h5>Histórico</h5>
+    <form method="GET" class="row g-2 align-items-end mb-2">
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="inicio">De</label>
+            <input type="date" class="form-control form-control-sm" id="inicio" name="inicio" value="{{ inicio.isoformat() }}">
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="fim">Até</label>
+            <input type="date" class="form-control form-control-sm" id="fim" name="fim" value="{{ fim.isoformat() }}">
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label small mb-1" for="f-motivo">Motivo</label>
+            <select name="motivo" id="f-motivo" class="form-select form-select-sm">
+                <option value="">Todos</option>
+                {% for k, v in motivos.items() %}<option value="{{ k }}" {{ 'selected' if k == motivo_filtro }}>{{ v }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-3"><button type="submit" class="btn btn-primary btn-sm w-100">Ver</button></div>
+    </form>
+    <div class="d-flex flex-wrap gap-1 mb-3">
+        {% for rot, a, b in atalhos %}
+        <a class="btn btn-sm {{ 'btn-success' if a == inicio and b == fim else 'btn-outline-success' }}"
+           href="{{ url_for('baixas.baixas', inicio=a.isoformat(), fim=b.isoformat(), motivo=motivo_filtro or None) }}">{{ rot }}</a>
+        {% endfor %}
+    </div>
+
+    {% if resumo %}
+    <div class="row g-2 mb-3">
+        {% for t in resumo %}
+        <div class="col-6 col-md-3">
+            <a class="card h-100 text-reset text-decoration-none" href="{{ url_for('baixas.baixas', inicio=inicio.isoformat(), fim=fim.isoformat(), motivo=t.chave) }}">
+                <div class="card-body py-2">
+                    <div class="small text-muted">{{ t.motivo }}</div>
+                    <div class="fs-5 fw-bold">{{ brl(t.valor) }}</div>
+                    <div class="small text-muted">{{ t.unidades }} unidade(s) a custo</div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+        {% if resumo|length > 1 %}
+        <div class="col-6 col-md-3">
+            <div class="card h-100 border-dark"><div class="card-body py-2">
+                <div class="small text-muted">Total no período</div>
+                <div class="fs-5 fw-bold">{{ brl(total.valor) }}</div>
+                <div class="small text-muted">{{ total.unidades }} unidade(s)</div>
+            </div></div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="table-responsive">
+    <table class="table table-sm align-middle" data-ordenavel>
+        <thead><tr><th data-ordem="texto" data-ordem-inicial="desc">Data</th><th data-ordem="texto">Produto</th><th data-ordem="texto">Motivo</th>
+            <th data-ordem="num" class="text-end">Qtd</th><th data-ordem="num" class="text-end">A custo</th><th>Detalhes</th><th></th></tr></thead>
+        <tbody>
+        {% for b in lista %}
+            <tr class="{{ 'text-muted text-decoration-line-through' if b.estornada_em }}">
+                <td data-v="{{ b.data.isoformat() }}" class="text-nowrap">{{ b.data.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ b.produto.nome }}</td>
+                <td>{{ b.motivo_nome }}</td>
+                <td class="text-end" data-v="{{ b.quantidade }}">{{ b.quantidade }}</td>
+                <td class="text-end text-nowrap" data-v="{{ b.valor_custo }}">{{ brl(b.valor_custo) }}</td>
+                <td class="small">
+                    {% if b.cliente %}para {{ b.cliente.nome }}{% endif %}{% if b.cliente and b.observacao %} · {% endif %}{{ b.observacao or '' }}
+                    {% if b.usuario %}<span class="text-muted">· {{ b.usuario.nome.split()[0] }}</span>{% endif %}
+                    {% if b.estornada_em %}<span class="badge bg-secondary text-decoration-none">estornada {{ b.estornada_em.strftime('%d/%m') }}</span>{% endif %}
+                </td>
+                <td>
+                    {% if not b.estornada_em %}
+                    <form method="POST" action="{{ url_for('baixas.estornar', id=b.id) }}"
+                          onsubmit="return confirm('Estornar? {{ b.quantidade }} × {{ b.produto.nome|e }} volta(m) para o estoque.')">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Estornar</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7" class="text-muted">Nenhuma baixa no período.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    const PRODUTOS = {{ produtos_js|tojson }};
+    const CODIGOS = {{ codigos|tojson }};
+    const INICIAL = {{ produto_inicial|tojson }};
+    const tbody = document.getElementById('itens');
+    const brl = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    function atualizar(tr) {
+        const p = PRODUTOS[tr.querySelector('select').value];
+        const qtd = tr.querySelector('input[name=quantidade]');
+        if (p) qtd.max = p.estoque;
+        const q = parseInt(qtd.value) || 0;
+        tr.querySelector('.subtotal').textContent = p ? brl(q * p.custo) : '';
+        qtd.classList.toggle('is-invalid', !!p && q > p.estoque);
+        let t = 0;
+        tbody.querySelectorAll('tr').forEach((l) => {
+            const pp = PRODUTOS[l.querySelector('select').value];
+            if (pp) t += (parseInt(l.querySelector('input[name=quantidade]').value) || 0) * pp.custo;
+        });
+        document.getElementById('total').textContent = brl(t);
+    }
+    function linha(pid) {
+        const clone = document.getElementById('tpl-item').content.cloneNode(true);
+        const tr = clone.querySelector('tr');
+        tbody.appendChild(clone);
+        if (pid && PRODUTOS[pid]) {
+            tr.querySelector('select').value = String(pid);
+            tr.querySelector('.campo-codigo').value = PRODUTOS[pid].codigo;
+        }
+        atualizar(tr);
+        return tr;
+    }
+    function porCodigo(tr) {
+        const c = tr.querySelector('.campo-codigo').value.trim().replace(/\s+/g, '');
+        const aviso = tr.querySelector('.codigo-aviso');
+        if (!c) { aviso.textContent = ''; return; }
+        const id = CODIGOS[c] ?? CODIGOS[c.replace(/^0+/, '')];
+        if (id === undefined) { aviso.className = 'small codigo-aviso text-danger'; aviso.textContent = 'Não encontrado ou sem estoque'; return; }
+        aviso.textContent = '';
+        tr.querySelector('select').value = String(id);
+        atualizar(tr);
+        tr.querySelector('input[name=quantidade]').select();
+    }
+
+    document.getElementById('add-item').addEventListener('click', () => linha().querySelector('.campo-codigo').focus());
+    tbody.addEventListener('change', (ev) => {
+        const tr = ev.target.closest('tr');
+        if (ev.target.classList.contains('campo-codigo')) porCodigo(tr);
+        else {
+            if (ev.target.name === 'produto_id' && PRODUTOS[ev.target.value]) tr.querySelector('.campo-codigo').value = PRODUTOS[ev.target.value].codigo;
+            atualizar(tr);
+        }
+    });
+    tbody.addEventListener('input', (ev) => { if (ev.target.name === 'quantidade') atualizar(ev.target.closest('tr')); });
+    tbody.addEventListener('click', (ev) => { if (ev.target.closest('.remover')) { ev.target.closest('tr').remove(); atualizar(tbody.lastElementChild || document.createElement('tr')); } });
+    tbody.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const tr = ev.target.closest('tr');
+        if (ev.target.classList.contains('campo-codigo')) porCodigo(tr);
+        else if (ev.target.name === 'quantidade' && tr === tbody.lastElementChild) linha().querySelector('.campo-codigo').focus();
+    });
+
+    // "para quem" só faz sentido em brinde/degustação
+    const motivo = document.getElementById('motivo');
+    const boxCliente = document.getElementById('box-cliente');
+    const mostrarCliente = () => {
+        boxCliente.hidden = !['brinde', 'degustacao', ''].includes(motivo.value);
+        if (boxCliente.hidden) document.getElementById('cliente_id').value = '';
+    };
+    motivo.addEventListener('change', mostrarCliente);
+    mostrarCliente();
+
+    const form = document.getElementById('form-baixa');
+    form.addEventListener('submit', (ev) => {
+        const linhas = [...tbody.querySelectorAll('tr')].filter((tr) => tr.querySelector('select').value);
+        if (!linhas.length) { ev.preventDefault(); alert('Inclua pelo menos um produto.'); return; }
+        for (const tr of linhas) {
+            const p = PRODUTOS[tr.querySelector('select').value];
+            const q = parseInt(tr.querySelector('input[name=quantidade]').value) || 0;
+            if (q < 1 || q > p.estoque) { ev.preventDefault(); tr.querySelector('input[name=quantidade]').focus();
+                alert(`${p.nome}: o estoque tem ${p.estoque}.`); return; }
+        }
+        tbody.querySelectorAll('tr').forEach((tr) => { if (!tr.querySelector('select').value) tr.remove(); });
+        form.querySelector('button[type=submit]').disabled = true;
+    });
+
+    linha(INICIAL);
+})();
+</script>
+{% endblock %}

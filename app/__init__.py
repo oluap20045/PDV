@@ -31,6 +31,8 @@ def create_app(config_class=Config):
     app.register_blueprint(main_blueprint)
     from app.pedidos import bp as pedidos_blueprint
     app.register_blueprint(pedidos_blueprint)
+    from app.baixas import bp as baixas_blueprint
+    app.register_blueprint(baixas_blueprint)
     from app.loja import bp as loja_blueprint, bp_admin as loja_admin_blueprint, pedidos_loja_novos
     app.register_blueprint(loja_blueprint)        # público (sem login): ver LOJA_PUBLICA em auth.py
     app.register_blueprint(loja_admin_blueprint)
