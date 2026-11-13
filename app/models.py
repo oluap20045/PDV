@@ -429,3 +429,30 @@ class BaixaEstoque(db.Model):
     @property
     def motivo_nome(self):
         return MOTIVOS_BAIXA.get(self.motivo, self.motivo)
+
+
+class LojaEvento(db.Model):
+    """Acesso/clique na loja online (analisador de tráfego). Sem dado pessoal: `visitante` é um código
+    aleatório que o próprio navegador guarda (não é IP, nome nem telefone)."""
+    __tablename__ = 'loja_evento'
+    id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'), primary_key=True)
+    criado_em = db.Column(db.DateTime, nullable=False, index=True)
+    visitante = db.Column(db.String(24), nullable=False, index=True)
+    tipo = db.Column(db.String(20), nullable=False, index=True)   # chave de TIPOS_EVENTO
+    alvo = db.Column(db.String(120), nullable=True)                # categoria, produto, botão...
+    produto_id = db.Column(db.Integer, nullable=True, index=True)  # sem FK: produto apagado não apaga a estatística
+    pagina = db.Column(db.String(20), nullable=True)               # loja | pedido | fechada
+    origem = db.Column(db.String(40), nullable=True)               # whatsapp, folder, google... ou 'direto'
+    dispositivo = db.Column(db.String(12), nullable=True)          # celular | computador | tablet
+
+
+TIPOS_EVENTO = {
+    'visita': 'Abriu a página',
+    'categoria': 'Filtrou categoria',
+    'adicionar': 'Adicionou ao carrinho',
+    'carrinho': 'Abriu o carrinho',
+    'pedido': 'Fez pedido',
+    'whatsapp': 'Clicou no WhatsApp',
+    'pix': 'Copiou o Pix',
+    'clique': 'Outro clique',
+}

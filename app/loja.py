@@ -10,13 +10,13 @@ import re
 import secrets
 import time
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 from flask import Blueprint, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 
 from app import db
-from app.models import Cliente, Empresa, Pedido, PedidoItem, Produto, ProdutoFoto
+from app.models import Cliente, Empresa, LojaEvento, Pedido, PedidoItem, Produto, ProdutoFoto, TIPOS_EVENTO
 from app.pedidos import agora, alocar
 from app import pix
 
@@ -199,6 +199,57 @@ def fazer_pedido():
     return jsonify(ok=True, url=url_for('loja.ver_pedido', codigo=pedido.codigo, novo=1))
 
 
+# ---------------------------------------------------------------- analisador de tráfego (público, só grava)
+
+_eventos_ip = defaultdict(deque)
+LIMITE_EVENTOS = 300                     # por IP a cada 10 min: sobra para uma pessoa, segura um robô
+ROBOS = re.compile(r'bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|curl|wget|python',
+                   re.I)
+
+
+def _dispositivo(ua):
+    if re.search(r'iPad|Tablet', ua):
+        return 'tablet'
+    return 'celular' if re.search(r'Mobi|Android|iPhone', ua) else 'computador'
+
+
+@bp.route('/evento', methods=['POST'])
+def evento():
+    """Recebe acessos e cliques do rastreio.js. Sempre responde 204: estatística nunca quebra a página."""
+    ua = request.user_agent.string or ''
+    if not ua or ROBOS.search(ua):
+        return '', 204
+    fila, agora_s = _eventos_ip[_ip()], time.monotonic()
+    while fila and agora_s - fila[0] > JANELA:
+        fila.popleft()
+    if len(fila) >= LIMITE_EVENTOS:
+        return '', 204
+    dados = request.get_json(force=True, silent=True)
+    if not isinstance(dados, dict):
+        return '', 204
+    visitante = re.sub(r'[^a-f0-9]', '', str(dados.get('v') or ''))[:24]
+    if len(visitante) != 24:
+        return '', 204
+    origem = re.sub(r'[^a-z0-9._-]', '', str(dados.get('o') or '').lower())[:40] or 'direto'
+    pagina = str(dados.get('p') or '')
+    pagina = pagina if pagina in ('loja', 'pedido', 'fechada') else None
+    disp, momento = _dispositivo(ua), agora()
+    eventos = dados.get('eventos') if isinstance(dados.get('eventos'), list) else []
+    for ev in eventos[:10]:
+        if not isinstance(ev, dict) or ev.get('t') not in TIPOS_EVENTO:
+            continue
+        try:
+            pid = int(ev['id']) if ev.get('id') is not None else None
+        except (TypeError, ValueError):
+            pid = None
+        alvo = re.sub(r'\s+', ' ', str(ev.get('a') or '')).strip()[:120] or None
+        fila.append(agora_s)
+        db.session.add(LojaEvento(criado_em=momento, visitante=visitante, tipo=ev['t'], alvo=alvo, produto_id=pid,
+                                  pagina=pagina, origem=origem, dispositivo=disp))
+    db.session.commit()
+    return '', 204
+
+
 @bp.route('/p/<codigo>')
 def ver_pedido(codigo):
     if not re.fullmatch(r'[A-Za-z0-9_-]{8,16}', codigo):
@@ -319,3 +370,93 @@ def salvar_produto(id):
 def pedidos_loja_novos():
     """Para o selo no menu: pedidos da loja em aberto."""
     return Pedido.query.filter_by(origem='loja', status='aberto').count()
+
+
+# ---------------------------------------------------------------- relatório de acessos (com login)
+
+PERIODOS = {'hoje': ('Hoje', 1), '7': ('7 dias', 7), '30': ('30 dias', 30), '90': ('90 dias', 90)}
+GUARDAR_DIAS = 400
+
+
+def _contagem(pares):
+    """[(chave, visitante)] -> [(chave, visitantes distintos, cliques)] do maior para o menor."""
+    vis, cliques = defaultdict(set), defaultdict(int)
+    for chave, v in pares:
+        vis[chave].add(v)
+        cliques[chave] += 1
+    return sorted(((k, len(vis[k]), cliques[k]) for k in vis), key=lambda x: (-x[1], -x[2], str(x[0])))
+
+
+@bp_admin.route('/acessos')
+def acessos():
+    periodo = request.args.get('periodo', '7')
+    if periodo not in PERIODOS:
+        periodo = '7'
+    _, dias = PERIODOS[periodo]
+    agora_ = agora()
+    hoje = agora_.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio = hoje - timedelta(days=dias - 1)
+
+    # limpeza: estatística antiga não serve para nada e só ocupa o banco
+    LojaEvento.query.filter(LojaEvento.criado_em < hoje - timedelta(days=GUARDAR_DIAS)).delete(synchronize_session=False)
+    db.session.commit()
+
+    eventos = (LojaEvento.query.filter(LojaEvento.criado_em >= inicio)
+               .order_by(LojaEvento.criado_em).limit(300_000).all())
+    visitas = [e for e in eventos if e.tipo == 'visita']
+    quem = lambda tipo: {e.visitante for e in eventos if e.tipo == tipo}
+    visitantes = {e.visitante for e in visitas}
+    ja_vieram = {v for (v,) in db.session.query(LojaEvento.visitante).filter(
+        LojaEvento.criado_em < inicio, LojaEvento.visitante.in_(visitantes)).distinct()} if visitantes else set()
+
+    funil = [('Entraram na loja', len({e.visitante for e in visitas if e.pagina in ('loja', None)})),
+             ('Adicionaram algo ao carrinho', len(quem('adicionar'))),
+             ('Abriram o carrinho', len(quem('carrinho'))),
+             ('Fizeram pedido', len(quem('pedido')))]
+
+    # visitantes por dia (ou por hora, se o período é só hoje)
+    serie = []
+    if dias == 1:
+        for h in range(agora_.hour + 1):
+            serie.append((f'{h:02d}h', len({e.visitante for e in visitas if e.criado_em.hour == h})))
+    else:
+        por_dia = defaultdict(set)
+        for e in visitas:
+            por_dia[e.criado_em.date()].add(e.visitante)
+        for i in range(dias):
+            d = (inicio + timedelta(days=i)).date()
+            serie.append((f'{DIAS_SEMANA[d.weekday()]} {d:%d/%m}', len(por_dia.get(d, ()))))   # eixo mostra só dd/mm
+    pico = []
+    if dias > 1:
+        por_hora = defaultdict(set)
+        for e in visitas:
+            por_hora[e.criado_em.hour].add(e.visitante)
+        pico = [(f'{h:02d}h', len(por_hora.get(h, ()))) for h in range(24)]
+
+    # primeira origem e aparelho de cada visitante no período
+    origem_de, aparelho_de = {}, {}
+    for e in visitas:
+        origem_de.setdefault(e.visitante, e.origem or 'direto')
+        aparelho_de.setdefault(e.visitante, e.dispositivo or '?')
+
+    pedidos_reais = Pedido.query.filter(Pedido.origem == 'loja', Pedido.criado_em >= inicio,
+                                        Pedido.status != 'cancelado').all()
+    cards = {
+        'visitantes': len(visitantes),
+        'novos': len(visitantes - ja_vieram),
+        'voltaram': len(visitantes & ja_vieram),
+        'paginas': len(visitas),
+        'fechada': len({e.visitante for e in visitas if e.pagina == 'fechada'}),
+        'pedidos': len(pedidos_reais),
+        'vendido': round(sum(p.total for p in pedidos_reais), 2),
+        'conversao': round(100 * len(quem('pedido')) / len(visitantes), 1) if visitantes else 0,
+    }
+    return render_template(
+        'loja_acessos.html', periodo=periodo, PERIODOS=PERIODOS, cards=cards, funil=funil, serie=serie, pico=pico,
+        produtos=_contagem((e.alvo or f'Produto {e.produto_id}', e.visitante) for e in eventos if e.tipo == 'adicionar'),
+        categorias=_contagem((e.alvo or 'Tudo', e.visitante) for e in eventos if e.tipo == 'categoria'),
+        cliques=_contagem((TIPOS_EVENTO[e.tipo] + (f' — {e.alvo}' if e.tipo == 'clique' and e.alvo else ''), e.visitante)
+                          for e in eventos if e.tipo not in ('visita', 'adicionar', 'categoria')),
+        origens=_contagem((o, v) for v, o in origem_de.items()),
+        aparelhos=_contagem((a, v) for v, a in aparelho_de.items()),
+        recentes=list(reversed(eventos[-40:])), TIPOS=TIPOS_EVENTO)

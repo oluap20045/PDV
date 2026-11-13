@@ -22,7 +22,13 @@
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.venda_pdv') }}">PDV</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('pedidos.pedidos') }}">Pedidos{% if pedidos_loja_abertos %}
                         <span class="badge rounded-pill bg-warning text-dark" title="Pedidos da loja online em aberto">🛒 {{ pedidos_loja_abertos }}</span>{% endif %}</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('loja_admin.config') }}">Loja online</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="menu-loja" role="button" data-bs-toggle="dropdown" aria-expanded="false">Loja online</a>
+                        <ul class="dropdown-menu" aria-labelledby="menu-loja">
+                            <li><a class="dropdown-item" href="{{ url_for('loja_admin.config') }}">Configurar loja</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('loja_admin.acessos') }}">Acessos (tráfego)</a></li>
+                        </ul>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.produtos') }}">Cadastro de Produtos</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.clientes') }}">Clientes</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.estoque') }}">Controle de Estoque</a></li>

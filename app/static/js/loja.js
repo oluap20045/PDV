@@ -8,6 +8,7 @@
     const ler = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k)) || padrao; } catch (e) { return padrao; } };
     const reais = v => v.toFixed(2).replace('.', ',');
     const $ = s => document.querySelector(s);
+    const rastro = (...a) => { if (window.lojaRastro) window.lojaRastro(...a); };   // analisador de tráfego (rastreio.js)
 
     // carrinho salvo: descarta o que sumiu da vitrine e respeita o estoque de agora
     let carrinho = {};
@@ -70,17 +71,19 @@
         const caixa = b.closest('[data-controle], [data-linha]');
         if (caixa) {
             const id = caixa.dataset.controle || caixa.dataset.linha;
+            if (b.classList.contains('adicionar')) rastro('adicionar', produtos[id] && produtos[id].nome, id);
             if (b.classList.contains('adicionar') || b.classList.contains('mais')) definir(id, (carrinho[id] || 0) + 1);
             if (b.classList.contains('menos')) definir(id, (carrinho[id] || 0) - 1);
         }
         if (b.classList.contains('chip')) {
+            rastro('categoria', b.dataset.cat || 'Tudo');
             document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === b));
             document.querySelectorAll('.produto').forEach(p => { p.hidden = !!b.dataset.cat && p.dataset.cat !== b.dataset.cat; });
         }
     });
 
     const dialogo = $('#carrinho');
-    const abrir = () => { $('#erro').hidden = true; dialogo.showModal(); };
+    const abrir = () => { $('#erro').hidden = true; rastro('carrinho'); dialogo.showModal(); };
     $('#barra').addEventListener('click', abrir);
     $('#abrir-carrinho').addEventListener('click', abrir);
     dialogo.addEventListener('click', ev => { if (ev.target === dialogo) dialogo.close(); });   // toque fora fecha
@@ -119,6 +122,8 @@
             });
             const resp = await r.json().catch(() => ({}));
             if (r.ok && resp.url) {
+                const total = Object.entries(carrinho).reduce((s, [id, q]) => s + q * produtos[id].preco, 0);
+                rastro('pedido', 'R$ ' + reais(total));
                 guardar('loja-carrinho', {});
                 window.location.href = resp.url;
                 return;

@@ -130,3 +130,8 @@ reserva o estoque e é entregue/cobrado pelo PDV como qualquer pedido.
 - Aparece na vitrine: produto marcado "Mostrar na loja", com preço e com estoque livre (estoque − reservas).
 - Publicação: Cloudflare Tunnel (`cloudflared`) → Caddy → app. Defina `LOJA_HOST` no `.env` com o nome público:
   nesse endereço só `/loja` responde; login e sistema interno dão 404 (continuam só na rede local / ZeroTier).
+- **Acessos (tráfego)** (menu Loja online → Acessos): quantas pessoas entraram, de onde vieram, aparelho, o que
+  colocaram no carrinho, categorias filtradas, caminho até o pedido e horário de pico. Sem cookie e sem dado pessoal:
+  cada aparelho ganha um código aleatório no `localStorage` (`app/static/js/rastreio.js` → `POST /loja/evento`).
+  Robôs e prévias de link não contam; `?o=folder` no link marca a origem; `?nao_contar=1` desliga a contagem no seu
+  aparelho. Eventos com mais de 400 dias são apagados sozinhos.

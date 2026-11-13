@@ -3,6 +3,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h2 class="mb-0">Loja online</h2>
         <div class="d-flex gap-2">
+            <a href="{{ url_for('loja_admin.acessos') }}" class="btn btn-outline-secondary">📊 Acessos</a>
             <a href="{{ url_for('pedidos.pedidos') }}" class="btn btn-outline-secondary">Pedidos</a>
             <a href="{{ url_for('loja.index') }}" target="_blank" rel="noopener" class="btn btn-outline-success">Abrir a loja ↗</a>
         </div>

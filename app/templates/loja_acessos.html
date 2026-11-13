@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block head %}
+<style>
+    .ac-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 12px; }
+    .ac-card { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 14px -10px rgba(38, 59, 29, .5); }
+    .ac-card .rotulo { font-size: .8rem; color: #5b6b52; }
+    .ac-card .valor { font-size: 1.7rem; font-weight: 700; line-height: 1.1; color: var(--folha-800); }
+    .ac-card .det { font-size: .78rem; color: #6c7a63; }
+    .ac-bloco { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 14px -10px rgba(38, 59, 29, .5); }
+    .ac-bloco h3 { font-size: 1rem; font-weight: 700; margin: 0 0 12px; color: var(--folha-800); }
+
+    /* colunas: visitantes por dia/hora (uma série só: sem legenda, valor no toque/hover) */
+    .ac-colunas { display: flex; align-items: flex-end; gap: 2px; height: 180px; border-bottom: 1px solid #d5dccf; }
+    .ac-col { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;
+              align-items: center; position: relative; cursor: default; }
+    .ac-col .barra { width: 100%; max-width: 34px; background: var(--folha-600); border-radius: 4px 4px 0 0; min-height: 0; }
+    .ac-col:hover .barra, .ac-col:focus .barra { background: var(--folha-800); }
+    .ac-col .num { font-size: .72rem; color: #3b4a33; margin-bottom: 2px; visibility: hidden; }
+    .ac-col:hover .num, .ac-col:focus .num, .ac-col.max .num { visibility: visible; }
+    .ac-eixo { display: flex; gap: 2px; margin-top: 4px; }
+    .ac-eixo span { flex: 1; min-width: 0; display: flex; justify-content: center; font-size: .68rem; color: #6c7a63; white-space: nowrap; }
+    .ac-eixo span > span { flex: none; }
+
+    /* barras horizontais: ranking */
+    .ac-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .ac-lista li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; font-size: .88rem; }
+    .ac-lista .nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ac-lista .qtd { color: #3b4a33; font-variant-numeric: tabular-nums; }
+    .ac-lista .trilho { grid-column: 1 / -1; height: 8px; background: #edf2e8; border-radius: 4px; overflow: hidden; }
+    .ac-lista .trilho span { display: block; height: 100%; background: var(--folha-600); border-radius: 4px; }
+
+    .ac-funil li .trilho { height: 14px; }
+    .ac-vazio { color: #6c7a63; font-size: .9rem; margin: 0; }
+    .ac-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+</style>
+{% endblock %}
+{% block content %}
+{% macro ranking(linhas, vazio, unidade='pessoa') %}
+    {% if linhas %}
+    {% set maior = linhas[0][1] or 1 %}
+    <ul class="ac-lista">
+        {% for nome, pessoas, cliques in linhas[:12] %}
+        <li title="{{ nome }}: {{ pessoas }} {{ unidade }}(s), {{ cliques }} clique(s)">
+            <span class="nome">{{ nome }}</span>
+            <span class="qtd"><strong>{{ pessoas }}</strong> {{ unidade }}{{ 's' if pessoas != 1 }}{% if cliques != pessoas %} · {{ cliques }} cliques{% endif %}</span>
+            <span class="trilho" aria-hidden="true"><span style="width: {{ (100 * pessoas / maior)|round(1) }}%"></span></span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}<p class="ac-vazio">{{ vazio }}</p>{% endif %}
+{% endmacro %}
+
+{% macro colunas(serie, titulo) %}
+    {% set maior = (serie|map(attribute=1)|max) if serie else 0 %}
+    <div class="ac-colunas" role="img" aria-label="{{ titulo }}">
+        {% for rot, v in serie %}
+        <div class="ac-col {{ 'max' if v and v == maior }}" tabindex="0" title="{{ rot }}: {{ v }} visitante{{ 's' if v != 1 }}">
+            <span class="num">{{ v }}</span>
+            <span class="barra" style="height: {{ (100 * v / maior)|round(1) if maior else 0 }}%"></span>
+        </div>
+        {% endfor %}
+    </div>
+    {% set passo = 1 if serie|length <= 8 else (2 if serie|length <= 16 else (3 if serie|length <= 24 else (5 if serie|length <= 31 else 14))) %}
+    <div class="ac-eixo" aria-hidden="true">
+        {% for rot, v in serie %}<span>{% if loop.index0 % passo == 0 %}<span>{{ rot.split(' ')[-1] }}</span>{% endif %}</span>{% endfor %}
+    </div>
+    <details class="mt-2 small"><summary>Ver em tabela</summary>
+        <table class="table table-sm mt-2 mb-0"><thead><tr><th>Quando</th><th class="text-end">Visitantes</th></tr></thead>
+            <tbody>{% for rot, v in serie %}<tr><td>{{ rot }}</td><td class="text-end">{{ v }}</td></tr>{% endfor %}</tbody></table>
+    </details>
+{% endmacro %}
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">Acessos da loja</h2>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="btn-group" role="group" aria-label="Período">
+                {% for k, (rot, _) in PERIODOS.items() %}
+                <a href="{{ url_for('loja_admin.acessos', periodo=k) }}" class="btn btn-sm btn-outline-success {{ 'active' if k == periodo }}"
+                   {{ 'aria-current=page' if k == periodo }}>{{ rot }}</a>
+                {% endfor %}
+            </div>
+            <a href="{{ url_for('loja_admin.config') }}" class="btn btn-sm btn-outline-secondary">Configurar loja</a>
+        </div>
+    </div>
+
+    <div class="ac-cards mb-3">
+        <div class="ac-card"><div class="rotulo">Pessoas que acessaram</div><div class="valor">{{ cards.visitantes }}</div>
+            <div class="det">{{ cards.novos }} nova{{ 's' if cards.novos != 1 }} · {{ cards.voltaram }} já tinha{{ 'm' if cards.voltaram != 1 }} vindo antes</div></div>
+        <div class="ac-card"><div class="rotulo">Páginas abertas</div><div class="valor">{{ cards.paginas }}</div>
+            <div class="det">{% if cards.fechada %}{{ cards.fechada }} pessoa(s) tentou com a loja fechada{% else %}loja, pedido e “fechada”{% endif %}</div></div>
+        <div class="ac-card"><div class="rotulo">Pedidos pela loja</div><div class="valor">{{ cards.pedidos }}</div>
+            <div class="det">R$ {{ ('%.2f'|format(cards.vendido)).replace('.', ',') }} (sem cancelados)</div></div>
+        <div class="ac-card"><div class="rotulo">Conversão</div><div class="valor">{{ ('%.1f'|format(cards.conversao)).replace('.', ',') }}%</div>
+            <div class="det">de quem acessou, quantos pediram</div></div>
+    </div>
+
+    <div class="ac-bloco mb-3">
+        <h3>{{ 'Visitantes por hora (hoje)' if periodo == 'hoje' else 'Visitantes por dia' }}</h3>
+        {{ colunas(serie, 'Visitantes por período') }}
+    </div>
+
+    <div class="ac-grade mb-3">
+        <div class="ac-bloco">
+            <h3>Caminho até o pedido</h3>
+            {% set topo = funil[0][1] or 1 %}
+            <ul class="ac-lista ac-funil">
+                {% for rot, n in funil %}
+                <li><span class="nome">{{ rot }}</span>
+                    <span class="qtd"><strong>{{ n }}</strong>{% if not loop.first and funil[0][1] %} · {{ (100 * n / topo)|round|int }}%{% endif %}</span>
+                    <span class="trilho" aria-hidden="true"><span style="width: {{ (100 * n / topo)|round(1) }}%"></span></span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="ac-bloco">
+            <h3>Produtos que mais colocaram no carrinho</h3>
+            {{ ranking(produtos, 'Ninguém adicionou produto ainda neste período.') }}
+        </div>
+        <div class="ac-bloco">
+            <h3>De onde vieram</h3>
+            {{ ranking(origens, 'Sem acessos neste período.') }}
+            <p class="small text-muted mt-2 mb-0">“direto” = digitou o endereço, leu o QR Code ou o app não informou.
+                Para saber o que veio do folder, use links com <code>?o=folder</code>.</p>
+        </div>
+        <div class="ac-bloco">
+            <h3>Aparelho</h3>
+            {{ ranking(aparelhos, 'Sem acessos neste período.') }}
+        </div>
+        <div class="ac-bloco">
+            <h3>Categorias filtradas</h3>
+            {{ ranking(categorias, 'Ninguém filtrou por categoria neste período.') }}
+        </div>
+        <div class="ac-bloco">
+            <h3>Outros cliques</h3>
+            {{ ranking(cliques, 'Nenhum outro clique neste período.') }}
+        </div>
+        {% if pico %}
+        <div class="ac-bloco">
+            <h3>Horário de pico (soma do período)</h3>
+            {{ colunas(pico, 'Visitantes por hora do dia') }}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="ac-bloco mb-3">
+        <h3>Últimos movimentos</h3>
+        {% if recentes %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Quando</th><th>Visitante</th><th>O quê</th><th>Detalhe</th><th>Origem</th><th>Aparelho</th></tr></thead>
+                <tbody>
+                {% for e in recentes %}
+                <tr>
+                    <td class="text-nowrap">{{ e.criado_em.strftime('%d/%m %H:%M') }}</td>
+                    <td><code title="Código aleatório do aparelho (não identifica a pessoa)">{{ e.visitante[:6] }}</code></td>
+                    <td>{{ TIPOS.get(e.tipo, e.tipo) }}</td>
+                    <td>{{ e.alvo or '' }}{% if e.tipo == 'visita' %} {{ {'loja': 'loja', 'pedido': 'página do pedido', 'fechada': 'loja fechada'}.get(e.pagina, '') }}{% endif %}</td>
+                    <td>{{ e.origem or '' }}</td>
+                    <td>{{ e.dispositivo or '' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<p class="ac-vazio">Nada neste período.</p>{% endif %}
+    </div>
+
+    <p class="small text-muted mb-0">
+        Sem cookies e sem dado pessoal: cada aparelho ganha um código aleatório (não guarda IP, nome nem telefone).
+        Robôs e prévias de link do WhatsApp não contam. Para <strong>não contar os seus acessos</strong>, abra uma vez no seu celular
+        a loja com <code>?nao_contar=1</code> no fim do endereço (ex.: <code>chocolatesdopaulinho.com.br/loja/?nao_contar=1</code>);
+        <code>?contar=1</code> volta a contar. Os dados ficam guardados por 400 dias.
+    </p>
+{% endblock %}

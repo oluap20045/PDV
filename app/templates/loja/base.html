@@ -8,7 +8,7 @@
     <title>{% block titulo %}{{ empresa.nome }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/loja.css') }}">
 </head>
-<body>
+<body data-rastro-url="{{ url_for('loja.evento') }}" data-pagina="{% block pagina %}loja{% endblock %}">
     <header class="topo">
         <a class="marca" href="{{ url_for('loja.index') }}"><span aria-hidden="true">🍫</span> {{ empresa.nome }}</a>
         {% block topo_extra %}{% endblock %}
@@ -19,6 +19,7 @@
     <footer class="rodape">
         {{ empresa.nome }}{% if empresa.mensagem %} · {{ empresa.mensagem }}{% endif %}
     </footer>
+    <script src="{{ url_for('static', filename='js/rastreio.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
