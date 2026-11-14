@@ -17,9 +17,15 @@
         {% endif %}
 
         <ul class="lista-itens">
-            {% for it in pedido.itens %}
-            <li><span>{{ it.quantidade }}× {{ it.produto.nome }}</span>
-                <span>R$ {{ ('%.2f'|format(it.quantidade * it.preco_unitario)).replace('.', ',') }}</span></li>
+            {% for b in blocos %}
+            {% if b[0] == 'combo' %}
+            <li class="combo-item"><span>🎁 Combo {{ b[1].nome }}
+                <small>{% for it in b[2] %}{{ it.quantidade }}× {{ it.produto.nome }}{{ ', ' if not loop.last }}{% endfor %}</small></span>
+                <span>R$ {{ ('%.2f'|format(b[3])).replace('.', ',') }}</span></li>
+            {% else %}
+            <li><span>{{ b[1].quantidade }}× {{ b[1].produto.nome }}</span>
+                <span>R$ {{ ('%.2f'|format(b[1].quantidade * b[1].preco_unitario)).replace('.', ',') }}</span></li>
+            {% endif %}
             {% endfor %}
             <li class="total"><span>Total</span><strong>R$ {{ ('%.2f'|format(pedido.total)).replace('.', ',') }}</strong></li>
         </ul>

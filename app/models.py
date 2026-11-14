@@ -70,8 +70,11 @@ class ItemVenda(db.Model):
     preco_unitario = db.Column(db.Float, nullable=False)
     custo_unitario = db.Column(db.Float, nullable=False)
     preco_tabela = db.Column(db.Float, nullable=True)   # preço do cadastro na hora; diferente de preco_unitario = desconto
+    combo_id = db.Column(db.Integer, db.ForeignKey('combo.id'), nullable=True, index=True)   # vendido dentro de um combo
+    combo_grupo = db.Column(db.SmallInteger, nullable=True)   # nº do combo na venda (2 combos iguais = grupos 1 e 2)
 
     produto = db.relationship('Produto')
+    combo = db.relationship('Combo')
 class GrupoConta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(50), nullable=False, unique=True)
@@ -365,7 +368,10 @@ class PedidoItem(db.Model):
     produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), nullable=False)
     quantidade = db.Column(db.Integer, nullable=False)
     preco_unitario = db.Column(db.Float, nullable=False)          # preço combinado com o cliente
+    combo_id = db.Column(db.Integer, db.ForeignKey('combo.id'), nullable=True)
+    combo_grupo = db.Column(db.SmallInteger, nullable=True)
     produto = db.relationship('Produto')
+    combo = db.relationship('Combo')
 
 
 class OrdemCompra(db.Model):
@@ -456,3 +462,37 @@ TIPOS_EVENTO = {
     'pix': 'Copiou o Pix',
     'clique': 'Outro clique',
 }
+
+
+# ---------------------------------------------------------------- Combos / promoções ("4 por 12")
+
+combo_produto = db.Table(
+    'combo_produto',
+    db.Column('combo_id', db.Integer, db.ForeignKey('combo.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('produto_id', db.Integer, db.ForeignKey('produto.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+class Combo(db.Model):
+    """Leve N itens (o cliente escolhe entre os produtos do combo) por um preço fechado.
+    Na venda cada unidade continua sendo do seu produto (baixa o estoque certo e guarda o custo certo);
+    o preço do combo é dividido entre as unidades e as linhas ficam marcadas com combo_id/combo_grupo."""
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(80), nullable=False)
+    quantidade = db.Column(db.Integer, nullable=False)          # leve N...
+    preco = db.Column(db.Float, nullable=False)                 # ...por R$ X
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
+    no_pdv = db.Column(db.Boolean, nullable=False, default=True)
+    na_loja = db.Column(db.Boolean, nullable=False, default=True)
+    inicio = db.Column(db.Date, nullable=True)                  # validade opcional
+    fim = db.Column(db.Date, nullable=True)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    produtos = db.relationship('Produto', secondary=combo_produto, lazy='selectin', order_by='Produto.nome')
+
+    def valido(self, hoje):
+        return bool(self.ativo and self.produtos and (self.inicio is None or self.inicio <= hoje)
+                    and (self.fim is None or self.fim >= hoje))
+
+    @property
+    def titulo(self):
+        return f'{self.quantidade} por R$ {self.preco:.2f}'.replace('.', ',')

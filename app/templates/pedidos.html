@@ -62,10 +62,11 @@
                     {% for it in p.itens %}
                         {% set at, fa = situacao.get(it.id, (0, 0)) %}
                         <tr>
-                            <td>{{ it.produto.nome }}{% if it.produto.codigo_fornecedor %} <span class="small text-muted">({{ it.produto.codigo_fornecedor }})</span>{% endif %}</td>
+                            <td>{{ it.produto.nome }}{% if it.produto.codigo_fornecedor %} <span class="small text-muted">({{ it.produto.codigo_fornecedor }})</span>{% endif %}
+                                {% if it.combo %}<div class="small text-success">🎁 combo {{ it.combo.nome }}</div>{% endif %}</td>
                             <td class="text-end">{{ it.quantidade }}</td>
                             <td class="text-end text-nowrap">R$ {{ '%.2f'|format(it.preco_unitario) }}
-                                {% if it.preco_unitario < it.produto.preco - 0.004 %}<div class="small text-success">desconto</div>{% endif %}</td>
+                                {% if it.preco_unitario < it.produto.preco - 0.004 and not it.combo %}<div class="small text-success">desconto</div>{% endif %}</td>
                             {% if p.status == 'aberto' %}
                             <td class="small">{% if fa %}<span class="text-danger">⚠ falta {{ fa }}</span>{% if at %} <span class="text-muted">(tem {{ at }})</span>{% endif %}
                                 {% else %}<span class="text-success">✓ reservado</span>{% endif %}</td>

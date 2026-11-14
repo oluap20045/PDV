@@ -95,7 +95,8 @@
                     <button type="button" class="btn btn-sm btn-link p-0" id="desconto-limpar">voltar ao preço de tabela</button>
                     <span class="text-success ms-auto" id="desconto-total"></span>
                 </div>
-                <div class="small text-muted mb-2" id="desconto-dica" hidden>Clique no preço de um item para mudar (promoção) ou digite <strong>10%</strong> para desconto.</div>
+                <div class="small mb-2 text-success" id="combo-dica" hidden></div>
+                <div class="small text-muted mb-2" id="desconto-dica" hidden>Clique no preço de um item para mudar (promoção) ou digite <strong>10%</strong> para desconto. Item com preço mexido fica fora dos combos.</div>
                 <div id="carrinho-vazio" class="carrinho-vazio">
                     <span class="folha" aria-hidden="true">🍃</span>
                     Carrinho vazio — bipe um produto para começar.
@@ -158,6 +159,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/combos.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const produtoSelect = document.getElementById('produto-select');
@@ -193,43 +195,80 @@ document.addEventListener('DOMContentLoaded', () => {
         return r2(pct ? tabela * (1 - v / 100) : v);
     }
 
+    // combos "leve N por R$ X": montados sozinhos com as unidades a preço de tabela (ver static/js/combos.js)
+    const COMBOS = {{ combos|tojson }};
+    const tabela = (id) => Math.abs(carrinho[id].preco - produtos[id].preco) < 0.005;
+
+    function linhaNormal(id, item, qtd) {
+        const p = produtos[id];
+        const subtotal = item.preco * qtd;
+        const promo = Math.abs(item.preco - p.preco) > 0.004;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td></td>
+            <td>${qtd}</td>
+            <td style="min-width: 7.5rem">
+                <input type="text" class="form-control form-control-sm preco-item ${promo ? 'border-success' : ''}" inputmode="decimal"
+                       value="${item.preco.toFixed(2).replace('.', ',')}" aria-label="Preço unitário" title="Preço (ou 10% para desconto)">
+                ${promo ? `<div class="small text-muted"><s>${brl(p.preco)}</s> ${item.preco < p.preco ? '−' + Math.round((1 - item.preco / p.preco) * 100) + '%' : ''}</div>` : ''}
+            </td>
+            <td>${brl(subtotal)}</td>
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-acao="menos">−</button>
+                <button type="button" class="btn btn-danger btn-sm" data-acao="remover">✕</button>
+                <input type="hidden" name="carrinho[]" value="${id}|${qtd}|${item.preco.toFixed(2)}">
+            </td>`;
+        tr.cells[0].textContent = p.nome;   // textContent: nome nunca vira HTML
+        tr.querySelector('[data-acao=menos]').onclick = () => { item.qtd--; if (item.qtd <= 0) delete carrinho[id]; render(); };
+        // ✕ tira só as unidades desta linha (as que estão em combo ficam)
+        tr.querySelector('[data-acao=remover]').onclick = () => { item.qtd -= qtd; if (item.qtd <= 0) delete carrinho[id]; render(); };
+        const campo = tr.querySelector('.preco-item');
+        const aplicar = () => {
+            const v = lerPreco(campo.value, p.preco);
+            if (v === null) { campo.classList.add('is-invalid'); return; }
+            item.preco = v; render();
+        };
+        campo.addEventListener('change', aplicar);
+        campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); aplicar(); } });
+        campo.addEventListener('focus', () => campo.select());
+        carrinhoBody.appendChild(tr);
+        return subtotal;
+    }
+
+    function linhaCombo(g, n) {
+        const tr = document.createElement('tr');
+        tr.className = 'table-success';
+        tr.innerHTML = `
+            <td><div class="fw-semibold"></div><div class="small text-muted combo-itens"></div></td>
+            <td>1</td>
+            <td><strong>${brl(g.combo.preco)}</strong><div class="small text-muted"><s>${brl(g.tabela)}</s> −${brl(g.economia)}</div></td>
+            <td>${brl(g.combo.preco)}</td>
+            <td class="text-nowrap"><button type="button" class="btn btn-danger btn-sm" data-acao="remover" title="Tirar o combo">✕</button>
+                ${g.linhas.map(l => `<input type="hidden" name="carrinho[]" value="${l.id}|${l.qtd}|${l.preco.toFixed(2)}|${g.combo.id}|${n}">`).join('')}</td>`;
+        tr.querySelector('.fw-semibold').textContent = '🎁 ' + g.combo.nome;
+        const qtdPorId = {};
+        g.linhas.forEach(l => { qtdPorId[l.id] = (qtdPorId[l.id] || 0) + l.qtd; });
+        tr.querySelector('.combo-itens').textContent = Object.entries(qtdPorId).map(([id, q]) => `${q}× ${produtos[id].nome}`).join(', ');
+        tr.querySelector('[data-acao=remover]').onclick = () => {
+            Object.entries(qtdPorId).forEach(([id, q]) => { carrinho[id].qtd -= q; if (carrinho[id].qtd <= 0) delete carrinho[id]; });
+            render();
+        };
+        carrinhoBody.appendChild(tr);
+        return g.combo.preco;
+    }
+
     function render() {
         carrinhoBody.innerHTML = '';
         let total = 0, desconto = 0;
+        const auto = Object.entries(carrinho).filter(([id]) => tabela(id))
+            .map(([id, item]) => ({id: +id, qtd: item.qtd, preco: produtos[id].preco}));
+        const {grupos, resto} = Combos.aplicar(auto, COMBOS);
+        grupos.forEach((g, i) => { total += linhaCombo(g, i + 1); desconto += g.economia; });
         for (const [id, item] of Object.entries(carrinho)) {
-            const p = produtos[id];
-            const subtotal = item.preco * item.qtd;
-            total += subtotal;
-            desconto += (p.preco - item.preco) * item.qtd;
-            const promo = Math.abs(item.preco - p.preco) > 0.004;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td></td>
-                <td>${item.qtd}</td>
-                <td style="min-width: 7.5rem">
-                    <input type="text" class="form-control form-control-sm preco-item ${promo ? 'border-success' : ''}" inputmode="decimal"
-                           value="${item.preco.toFixed(2).replace('.', ',')}" aria-label="Preço unitário" title="Preço (ou 10% para desconto)">
-                    ${promo ? `<div class="small text-muted"><s>${brl(p.preco)}</s> ${item.preco < p.preco ? '−' + Math.round((1 - item.preco / p.preco) * 100) + '%' : ''}</div>` : ''}
-                </td>
-                <td>${brl(subtotal)}</td>
-                <td class="text-nowrap">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-acao="menos">−</button>
-                    <button type="button" class="btn btn-danger btn-sm" data-acao="remover">✕</button>
-                    <input type="hidden" name="carrinho[]" value="${id}|${item.qtd}|${item.preco.toFixed(2)}">
-                </td>`;
-            tr.cells[0].textContent = p.nome;   // textContent: nome nunca vira HTML
-            tr.querySelector('[data-acao=menos]').onclick = () => { item.qtd--; if (item.qtd <= 0) delete carrinho[id]; render(); };
-            tr.querySelector('[data-acao=remover]').onclick = () => { delete carrinho[id]; render(); };
-            const campo = tr.querySelector('.preco-item');
-            const aplicar = () => {
-                const v = lerPreco(campo.value, p.preco);
-                if (v === null) { campo.classList.add('is-invalid'); return; }
-                item.preco = v; render();
-            };
-            campo.addEventListener('change', aplicar);
-            campo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); aplicar(); } });
-            campo.addEventListener('focus', () => campo.select());
-            carrinhoBody.appendChild(tr);
+            const qtd = tabela(id) ? (resto[+id] || 0) : item.qtd;
+            if (!qtd) continue;
+            total += linhaNormal(id, item, qtd);
+            desconto += (produtos[id].preco - item.preco) * qtd;
         }
         total = r2(total);
         totalVendaSpan.innerText = brl(total);
@@ -239,6 +278,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('desconto-box').hidden = !tem;
         document.getElementById('desconto-dica').hidden = !tem;
         document.getElementById('desconto-total').textContent = desconto > 0.004 ? `Desconto: ${brl(r2(desconto))}` : '';
+        const dicas = Combos.faltando(resto, COMBOS);
+        const dica = document.getElementById('combo-dica');
+        dica.hidden = !dicas.length;
+        dica.textContent = dicas.map(d => `🎁 Falta${d.falta > 1 ? 'm' : ''} ${d.falta} para o combo ${d.combo.nome} (${d.combo.titulo})`).join(' · ');
     }
 
     // devolve mensagem (usada também no status do leitor de câmera)
@@ -256,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // desconto % em todos os itens (sobre o preço de tabela)
     document.getElementById('desconto-aplicar').addEventListener('click', () => {
         const campo = document.getElementById('desconto-geral');
-        const pct = lerPreco(campo.value || '0', 100);
+        const pct = lerPreco(campo.value || '0', 100);   // desconto em tudo tira os itens dos combos
         if (pct === null || pct > 100) { campo.classList.add('is-invalid'); return; }
         campo.classList.remove('is-invalid');
         for (const [id, item] of Object.entries(carrinho)) item.preco = r2(produtos[id].preco * (1 - pct / 100));

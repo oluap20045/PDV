@@ -3,6 +3,8 @@
     'use strict';
     const produtos = {};
     JSON.parse(document.getElementById('dados-produtos').textContent).forEach(p => { produtos[p.id] = p; });
+    const elCombos = document.getElementById('dados-combos');
+    const COMBOS = elCombos ? JSON.parse(elCombos.textContent) : [];
 
     const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* aba anônima */ } };
     const ler = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k)) || padrao; } catch (e) { return padrao; } };
@@ -37,11 +39,42 @@
         }
     }
 
+    // combos "leve N por R$ X" (mesma regra do servidor: static/js/combos.js)
+    function combos() {
+        const itens = Object.keys(carrinho).map(id => ({id: +id, qtd: carrinho[id], preco: produtos[id].preco}));
+        return window.Combos ? Combos.aplicar(itens, COMBOS) : {grupos: [], resto: {}};
+    }
+
+    function desenharCombos(r) {
+        const box = $('#carrinho-combos');
+        box.innerHTML = '';
+        r.grupos.forEach(g => {
+            const qtdPorId = {};
+            g.linhas.forEach(l => { qtdPorId[l.id] = (qtdPorId[l.id] || 0) + l.qtd; });
+            const d = document.createElement('div');
+            d.className = 'combo-linha';
+            d.innerHTML = '<div><strong></strong><small></small></div><span class="economia"></span>';
+            d.querySelector('strong').textContent = '🎁 ' + g.combo.nome;
+            d.querySelector('small').textContent = Object.entries(qtdPorId).map(([id, q]) => `${q}× ${produtos[id].nome}`).join(', ');
+            d.querySelector('.economia').textContent = `− R$ ${reais(g.economia)}`;
+            box.appendChild(d);
+        });
+        (window.Combos ? Combos.faltando(r.resto, COMBOS) : []).forEach(f => {
+            const d = document.createElement('p');
+            d.className = 'combo-falta';
+            d.textContent = `🎁 Falta${f.falta > 1 ? 'm' : ''} ${f.falta} para o combo ${f.combo.nome} (${f.combo.quantidade} por R$ ${reais(f.combo.preco)})`;
+            box.appendChild(d);
+        });
+    }
+
     function desenhar() {
         Object.keys(produtos).forEach(controle);
         const ids = Object.keys(carrinho);
         const qtd = ids.reduce((s, id) => s + carrinho[id], 0);
-        const total = ids.reduce((s, id) => s + carrinho[id] * produtos[id].preco, 0);
+        const r = combos();
+        desenharCombos(r);
+        const total = ids.reduce((s, id) => s + carrinho[id] * produtos[id].preco, 0)
+            - r.grupos.reduce((s, g) => s + g.economia, 0);
         $('#barra').hidden = !qtd;
         $('#barra-qtd').textContent = qtd;
         $('#barra-total').textContent = reais(total);
@@ -78,7 +111,19 @@
         if (b.classList.contains('chip')) {
             rastro('categoria', b.dataset.cat || 'Tudo');
             document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === b));
+            document.querySelectorAll('.combo').forEach(c => c.setAttribute('aria-pressed', 'false'));
             document.querySelectorAll('.produto').forEach(p => { p.hidden = !!b.dataset.cat && p.dataset.cat !== b.dataset.cat; });
+        }
+        if (b.classList.contains('combo')) {     // mostra só os produtos que entram no combo (toque de novo = tudo)
+            const ligar = b.getAttribute('aria-pressed') !== 'true';
+            const c = COMBOS.find(x => String(x.id) === b.dataset.combo);
+            rastro('clique', 'Combo: ' + (c ? c.nome : b.dataset.combo));
+            document.querySelectorAll('.combo').forEach(x => x.setAttribute('aria-pressed', String(ligar && x === b)));
+            document.querySelectorAll('.chip').forEach(x => x.classList.toggle('ativo', !ligar && !x.dataset.cat));
+            document.querySelectorAll('.produto').forEach(p => {
+                p.hidden = ligar && !p.dataset.combos.split(' ').includes(b.dataset.combo);
+            });
+            if (ligar) document.getElementById('grade').scrollIntoView({behavior: 'smooth', block: 'start'});
         }
     });
 
@@ -122,7 +167,8 @@
             });
             const resp = await r.json().catch(() => ({}));
             if (r.ok && resp.url) {
-                const total = Object.entries(carrinho).reduce((s, [id, q]) => s + q * produtos[id].preco, 0);
+                const total = Object.entries(carrinho).reduce((s, [id, q]) => s + q * produtos[id].preco, 0)
+                    - combos().grupos.reduce((s, g) => s + g.economia, 0);
                 rastro('pedido', 'R$ ' + reais(total));
                 guardar('loja-carrinho', {});
                 window.location.href = resp.url;

@@ -120,6 +120,20 @@ Bash
 
 docker compose restart
 
+## Combos e promoções (`/combos`)
+
+"Leve 4 por R$ 12": em **Produtos → Combos e promoções** você define quantos itens, o preço e quais produtos o
+cliente pode escolher (com validade opcional e se vale no PDV, na loja online ou nos dois). O desconto entra
+**sozinho** quando o carrinho fecha a quantidade, e o combo aparece como um item só (com os sabores escolhidos
+embaixo) no carrinho, no comprovante e no pedido. Cada unidade continua sendo do seu produto: baixa o estoque certo e
+guarda o custo certo (o preço do combo é dividido entre as unidades; linhas marcadas com `combo_id`/`combo_grupo`).
+
+- A regra está em `app/combos.py` e, igual, em `app/static/js/combos.js` (mexeu num, mexa no outro): combos mais
+  baratos por unidade primeiro; unidades mais caras entram primeiro; só monta se sair mais barato que avulso.
+- No PDV, item com preço mexido à mão (ou "desconto em tudo") fica fora dos combos. O servidor confere cada combo
+  que chega do PDV (quantidade, produtos, preço, validade) e recusa a venda se não fechar.
+- Combo já usado em venda/pedido não é apagado: "excluir" desativa, para o histórico continuar mostrando o combo.
+
 ## Loja online (`/loja`)
 
 Vitrine pública para os clientes do condomínio pedirem pelo celular. O pedido entra em **Pedidos** (selo 🛒 no menu),

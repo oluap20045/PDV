@@ -18,6 +18,17 @@
             <p>Logo tem mais. Fique de olho.</p>
         </section>
     {% else %}
+        {% if combos %}
+        <section class="combos" aria-label="Combos e promoções">
+            {% for c in combos %}
+            <button type="button" class="combo" data-combo="{{ c.id }}" aria-pressed="false">
+                <span class="combo-selo">🎁 {{ c.quantidade }} por R$ {{ ('%.2f'|format(c.preco)).replace('.', ',') }}</span>
+                <strong>{{ c.nome }}</strong>
+                <small>Escolha {{ c.quantidade }} entre {{ c.produtos|length }} opç{{ 'ão' if c.produtos|length == 1 else 'ões' }} · <u>ver opções</u></small>
+            </button>
+            {% endfor %}
+        </section>
+        {% endif %}
         {% if categorias|length > 1 %}
         <nav class="categorias" aria-label="Categorias">
             <button type="button" class="chip ativo" data-cat="">Tudo</button>
@@ -27,8 +38,9 @@
 
         <div class="grade" id="grade">
             {% for i in itens %}
-            <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}">
+            <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}">
                 <div class="produto-foto">
+                    {% for c in combos if c.id in i.combos %}{% if loop.first %}<span class="selo-combo">🎁 {{ c.quantidade }} por {{ ('%.0f'|format(c.preco)) if c.preco == c.preco|int else ('%.2f'|format(c.preco)).replace('.', ',') }}</span>{% endif %}{% endfor %}
                     {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
                     {% else %}<span aria-hidden="true">🍫</span>{% endif %}
                 </div>
@@ -61,6 +73,7 @@
             <button class="fechar" aria-label="Fechar">✕</button>
         </form>
         <div id="carrinho-itens" class="carrinho-itens"></div>
+        <div id="carrinho-combos" class="carrinho-combos"></div>
         <div class="carrinho-total">Total <strong>R$ <span id="carrinho-total">0,00</span></strong></div>
 
         <form id="form-pedido" class="form-pedido" novalidate>
@@ -88,7 +101,9 @@
     </dialog>
 
     <script type="application/json" id="dados-produtos">{{ itens|tojson }}</script>
+    <script type="application/json" id="dados-combos">{{ combos|tojson }}</script>
 {% endblock %}
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/combos.js') }}"></script>
 <script src="{{ url_for('static', filename='js/loja.js') }}"></script>
 {% endblock %}

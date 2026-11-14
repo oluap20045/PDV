@@ -14,6 +14,7 @@ from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRA
                         TaxaPagamento, VendaPagamento, Empresa)
 from urllib.parse import quote
 from app.precificacao import registrar_entrada, parametros as parametros_preco
+from app.combos import combo_dict, combos_validos, conferir_grupos
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
@@ -276,6 +277,8 @@ def venda_pdv():
                 return redirect(url_for('pedidos.pedidos'))
 
         try:
+            # linha do carrinho: produto|qtd|preço[|combo_id|nº do combo na venda]
+            linhas = []
             for item_str in itens_carrinho:
                 partes = item_str.split('|')
                 produto_id, quantidade_vendida = partes[0], int(partes[1])
@@ -288,14 +291,24 @@ def venda_pdv():
                 preco = round(float(partes[2]), 2) if len(partes) > 2 and partes[2] else produto.preco
                 if preco < 0:
                     raise Exception(f'preço inválido para {produto.nome}')
-                if produto.quantidade < quantidade_vendida:
+                combo_id = int(partes[3]) if len(partes) > 4 and partes[3] else None
+                grupo = int(partes[4]) if combo_id else None
+                linhas.append((produto, quantidade_vendida, preco, combo_id, grupo))
+            conferir_grupos(linhas, 'pdv')
+            precisa = {}
+            for produto, q, _, _, _ in linhas:
+                precisa[produto] = precisa.get(produto, 0) + q
+            for produto, q in precisa.items():
+                if produto.quantidade < q:
                     raise Exception(f'Estoque insuficiente para o produto {produto.nome}')
+            for produto, quantidade_vendida, preco, combo_id, grupo in linhas:
                 produto.quantidade -= quantidade_vendida
                 total_venda += preco * quantidade_vendida
                 db.session.add(ItemVenda(
                     venda_id=nova_venda.id, produto_id=produto.id, quantidade=quantidade_vendida,
                     preco_unitario=preco, preco_tabela=produto.preco,
                     custo_unitario=produto.custo,   # custo do momento da venda
+                    combo_id=combo_id, combo_grupo=grupo,
                 ))
             total_venda = round(total_venda, 2)
             nova_venda.total = total_venda
@@ -348,9 +361,12 @@ def venda_pdv():
             flash('Esse pedido não está mais em aberto.', 'warning')
             return redirect(url_for('pedidos.pedidos'))
         selecionado = pedido.cliente_id
-        pedido_js = {'id': pedido.id, 'itens': [{'id': str(it.produto_id), 'qtd': it.quantidade, 'preco': it.preco_unitario}
+        # item que veio em combo entra a preço de tabela: o PDV monta o combo de novo sozinho
+        pedido_js = {'id': pedido.id, 'itens': [{'id': str(it.produto_id), 'qtd': it.quantidade,
+                                                 'preco': None if it.combo_id else it.preco_unitario}
                                                 for it in pedido.itens]}
     return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima, pedido=pedido, pedido_js=pedido_js,
+                           combos=[combo_dict(c) for c in combos_validos('pdv')],
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
                            formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,

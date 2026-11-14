@@ -19,6 +19,7 @@ from app import db
 from app.models import Cliente, Empresa, LojaEvento, Pedido, PedidoItem, Produto, ProdutoFoto, TIPOS_EVENTO
 from app.pedidos import agora, alocar
 from app import pix
+from app.combos import agrupar, aplicar as aplicar_combos, combo_dict, combos_validos
 
 bp = Blueprint('loja', __name__, url_prefix='/loja')
 bp_admin = Blueprint('loja_admin', __name__, url_prefix='/loja-admin')
@@ -115,7 +116,12 @@ def index():
     itens = _vitrine()
     categorias = list(dict.fromkeys(i['categoria'] for i in itens))
     pagamentos = [p for p in PAGAMENTOS if p != 'Pix' or _pix_ok(emp)]
-    return render_template('loja/index.html', empresa=emp, itens=itens, categorias=categorias, pagamentos=pagamentos)
+    na_vitrine = {i['id'] for i in itens}
+    combos = [d for d in (combo_dict(c, na_vitrine) for c in combos_validos('loja')) if d['produtos']]
+    for i in itens:
+        i['combos'] = [c['id'] for c in combos if i['id'] in c['produtos']]
+    return render_template('loja/index.html', empresa=emp, itens=itens, categorias=categorias, pagamentos=pagamentos,
+                           combos=combos)
 
 
 @bp.route('/foto/<int:id>')
@@ -192,7 +198,14 @@ def fazer_pedido():
                     # cliente já cadastrado com outro nome (ex.: alguém da mesma casa): guarda o nome digitado
                     observacao=' · '.join(filter(None, [f'Nome no pedido: {nome}' if cliente.nome != nome else '',
                                                         obs]))[:255] or None)
-    for pid, q in pedidos_itens.items():
+    # combos ("4 por 12") entram sozinhos; cada unidade continua sendo do seu produto
+    grupos, resto = aplicar_combos([(pid, q, round(produtos[pid].preco, 2)) for pid, q in pedidos_itens.items()],
+                                   [combo_dict(c) for c in combos_validos('loja')])
+    for n, g in enumerate(grupos, 1):
+        for pid, q, preco in g['linhas']:
+            pedido.itens.append(PedidoItem(produto_id=pid, quantidade=q, preco_unitario=preco,
+                                           combo_id=g['combo']['id'], combo_grupo=n))
+    for pid, q in resto.items():
         pedido.itens.append(PedidoItem(produto_id=pid, quantidade=q, preco_unitario=round(produtos[pid].preco, 2)))
     db.session.add(pedido)
     db.session.commit()
@@ -264,14 +277,18 @@ def ver_pedido(codigo):
     link_zap = None
     if zap:
         linhas = [f'Olá! Fiz o pedido #{pedido.id} na loja:']
-        linhas += [f'• {it.quantidade}x {it.produto.nome}' for it in pedido.itens]
+        for bloco in agrupar(pedido.itens):
+            if bloco[0] == 'combo':
+                linhas.append(f'• Combo {bloco[1].nome}: ' + ', '.join(f'{it.quantidade}x {it.produto.nome}' for it in bloco[2]))
+            else:
+                linhas.append(f'• {bloco[1].quantidade}x {bloco[1].produto.nome}')
         linhas += [f'Total: R$ {pedido.total:.2f}'.replace('.', ','), f'Entrega: {pedido.entrega}',
                    f'Pagamento: {pedido.pagamento}']
         if emp.loja_horario:
             linhas.append(f'Entregas: das {emp.loja_horario}')
         linhas += ['', 'https://' + request.host + url_for('loja.ver_pedido', codigo=codigo)]
         link_zap = f'https://wa.me/{zap}?text={quote(chr(10).join(linhas))}'
-    return render_template('loja/pedido.html', pedido=pedido, empresa=emp, pix_txt=pix_txt, qr=qr,
+    return render_template('loja/pedido.html', pedido=pedido, empresa=emp, pix_txt=pix_txt, qr=qr, blocos=agrupar(pedido.itens),
                            link_zap=link_zap, STATUS=STATUS_CLIENTE, novo=request.args.get('novo') == '1')
 
 

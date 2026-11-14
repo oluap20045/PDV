@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% macro campo(nome, padrao) -%}{{ form.get(nome, '') if form else (padrao if padrao is not none else '') }}{%- endmacro %}
+{% macro marcado(nome, padrao) -%}{{ 'checked' if (form.get(nome) == '1' if form else padrao) }}{%- endmacro %}
+{% block content %}
+{% set escolhidos = (form.getlist('produtos')|map('int')|list) if form else (combo.produtos|map(attribute='id')|list) %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="mb-0">{{ 'Editar combo' if combo.id else 'Novo combo' }}</h2>
+        <a href="{{ url_for('combos.lista') }}" class="btn btn-outline-secondary btn-sm">Voltar</a>
+    </div>
+
+    <form method="POST" id="form-combo">
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="nome">Nome do combo</label>
+                <input name="nome" id="nome" class="form-control" maxlength="80" required
+                       value="{{ campo('nome', combo.nome) }}" placeholder="Trufas laCreme 13 g — 4 por 12">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="quantidade">Leve</label>
+                <div class="input-group">
+                    <input name="quantidade" id="quantidade" type="number" min="2" max="50" class="form-control" required
+                           value="{{ campo('quantidade', combo.quantidade or 3) }}">
+                    <span class="input-group-text">un.</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="preco">Por</label>
+                <div class="input-group">
+                    <span class="input-group-text">R$</span>
+                    <input name="preco" id="preco" class="form-control" inputmode="decimal" required
+                           value="{{ campo('preco', ('%.2f'|format(combo.preco)).replace('.', ',') if combo.preco else '') }}">
+                </div>
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" role="switch" name="ativo" value="1" id="ativo" {{ marcado('ativo', combo.ativo) }}>
+                    <label class="form-check-label" for="ativo">Ativo</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-6">
+                <span class="form-label d-block">Vale em</span>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="no_pdv" value="1" id="no_pdv" {{ marcado('no_pdv', combo.no_pdv) }}>
+                    <label class="form-check-label" for="no_pdv">PDV (balcão)</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="na_loja" value="1" id="na_loja" {{ marcado('na_loja', combo.na_loja) }}>
+                    <label class="form-check-label" for="na_loja">Loja online</label>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="inicio">Começa em <small class="text-muted">(opcional)</small></label>
+                <input type="date" name="inicio" id="inicio" class="form-control" value="{{ campo('inicio', combo.inicio.isoformat() if combo.inicio else '') }}">
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="fim">Termina em <small class="text-muted">(opcional)</small></label>
+                <input type="date" name="fim" id="fim" class="form-control" value="{{ campo('fim', combo.fim.isoformat() if combo.fim else '') }}">
+            </div>
+        </div>
+
+        <div class="alert alert-light border small mb-3" id="resumo" aria-live="polite"></div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <h5 class="mb-0 me-auto">Produtos que o cliente pode escolher <span class="badge bg-success" id="qtd-marcados">0</span></h5>
+                    <input type="search" id="busca" class="form-control form-control-sm" style="max-width: 16rem" placeholder="Buscar produto..." autocomplete="off">
+                    <select id="categoria" class="form-select form-select-sm" style="max-width: 12rem" aria-label="Categoria">
+                        <option value="">Todas as categorias</option>
+                        {% for cat in produtos|map(attribute='categoria')|map('default', 'Outros', true)|unique|sort %}<option>{{ cat }}</option>{% endfor %}
+                    </select>
+                    <label class="form-check small mb-0"><input type="checkbox" class="form-check-input" id="so-estoque" checked> só com estoque</label>
+                    <label class="form-check small mb-0"><input type="checkbox" class="form-check-input" id="so-marcados"> só marcados</label>
+                </div>
+                <div class="d-flex gap-2 mb-2 small">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="marcar-visiveis">Marcar os que aparecem</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="desmarcar-visiveis">Desmarcar os que aparecem</button>
+                </div>
+                <div class="table-responsive" style="max-height: 28rem; overflow-y: auto">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="sticky-top bg-white"><tr><th></th><th>Produto</th><th>Categoria</th><th class="text-end">Preço</th><th class="text-end">Custo</th><th class="text-end">Estoque</th></tr></thead>
+                    <tbody>
+                    {% for p in produtos %}
+                    <tr class="linha-produto" data-nome="{{ p.nome|lower }}" data-cat="{{ p.categoria or 'Outros' }}" data-estoque="{{ p.quantidade }}"
+                        data-preco="{{ p.preco }}" data-custo="{{ p.custo or 0 }}">
+                        <td><input class="form-check-input" type="checkbox" name="produtos" value="{{ p.id }}" id="p{{ p.id }}"
+                                   aria-label="{{ p.nome }}" {{ 'checked' if p.id in escolhidos }}></td>
+                        <td><label for="p{{ p.id }}" class="mb-0">{{ p.nome }}</label></td>
+                        <td class="small text-muted">{{ p.categoria or '' }}</td>
+                        <td class="text-end text-nowrap">R$ {{ ('%.2f'|format(p.preco)).replace('.', ',') }}</td>
+                        <td class="text-end text-nowrap">R$ {{ ('%.2f'|format(p.custo or 0)).replace('.', ',') }}</td>
+                        <td class="text-end">{{ p.quantidade }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success">Salvar combo</button>
+            <a href="{{ url_for('combos.lista') }}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const $ = s => document.querySelector(s);
+    const linhas = [...document.querySelectorAll('.linha-produto')];
+    const brl = v => v.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+    const num = t => { t = String(t).replace('R$', '').trim(); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const v = parseFloat(t); return isNaN(v) ? 0 : v; };
+
+    function filtrar() {
+        const termo = $('#busca').value.trim().toLowerCase(), cat = $('#categoria').value;
+        const soEstoque = $('#so-estoque').checked, soMarcados = $('#so-marcados').checked;
+        linhas.forEach(l => {
+            const marcado = l.querySelector('input').checked;
+            l.hidden = !((!termo || l.dataset.nome.includes(termo)) && (!cat || l.dataset.cat === cat)
+                && (!soEstoque || +l.dataset.estoque > 0 || marcado) && (!soMarcados || marcado));
+        });
+    }
+
+    function resumo() {
+        const n = parseInt($('#quantidade').value) || 0, preco = num($('#preco').value);
+        const marcados = linhas.filter(l => l.querySelector('input').checked);
+        $('#qtd-marcados').textContent = marcados.length;
+        const box = $('#resumo');
+        if (!n || !preco) { box.textContent = 'Preencha quantos itens e o preço do combo.'; return; }
+        const unid = preco / n;
+        const partes = [`Cada unidade sai por <strong>${brl(unid)}</strong>.`];
+        if (marcados.length) {
+            const precos = marcados.map(l => +l.dataset.preco), custos = marcados.map(l => +l.dataset.custo);
+            const custoMedio = custos.reduce((a, b) => a + b, 0) / custos.length, custoMax = Math.max(...custos);
+            const min = Math.min(...precos) * n, max = Math.max(...precos) * n;
+            partes.push(`Sem o combo, ${n} unidades custariam ${min === max ? brl(min) : 'de ' + brl(min) + ' a ' + brl(max)}.`);
+            const margem = unid - custoMedio;
+            partes.push(`Custo médio ${brl(custoMedio)} → lucro de <strong class="${margem < 0 ? 'text-danger' : 'text-success'}">${brl(margem)}</strong> por unidade
+                (${unid ? Math.round(margem / unid * 100) : 0}%), ${brl(margem * n)} por combo.`);
+            if (unid < custoMax) partes.push(`<span class="text-danger">⚠ Abaixo do custo de algum produto marcado (maior custo ${brl(custoMax)}).</span>`);
+            if (preco >= max) partes.push('<span class="text-warning">⚠ O combo não sai mais barato que comprar avulso: ele nunca vai ser aplicado.</span>');
+            else if (preco >= min) partes.push('<span class="text-warning">⚠ Com os produtos mais baratos o combo não dá desconto: nesses casos ele não é aplicado.</span>');
+        } else {
+            partes.push('Marque abaixo os produtos que entram no combo.');
+        }
+        box.innerHTML = partes.join(' ');
+    }
+
+    ['#busca', '#categoria', '#so-estoque', '#so-marcados'].forEach(s => $(s).addEventListener('input', filtrar));
+    ['#quantidade', '#preco'].forEach(s => $(s).addEventListener('input', resumo));
+    linhas.forEach(l => l.querySelector('input').addEventListener('change', resumo));
+    const marcarVisiveis = v => { linhas.filter(l => !l.hidden).forEach(l => { l.querySelector('input').checked = v; }); resumo(); filtrar(); };
+    $('#marcar-visiveis').addEventListener('click', () => marcarVisiveis(true));
+    $('#desmarcar-visiveis').addEventListener('click', () => marcarVisiveis(false));
+    filtrar(); resumo();
+})();
+</script>
+{% endblock %}

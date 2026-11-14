@@ -100,8 +100,20 @@ def _desenhar(pdf, venda, empresa):
         pdf.multi_cell(UTIL, 4, _txt(texto), new_x='LMARGIN', new_y='NEXT')
     separador()
 
-    # itens
-    for item in venda.itens:
+    # itens (combo "4 por 12" sai como um item só, com os produtos escolhidos embaixo)
+    from app.combos import agrupar
+    for bloco in agrupar(venda.itens):
+        if bloco[0] == 'combo':
+            _, combo, itens, total = bloco
+            pdf.set_font('Helvetica', 'B', 8)
+            pdf.multi_cell(UTIL, 4, _txt(f'Combo {combo.nome}' if combo else 'Combo'), new_x='LMARGIN', new_y='NEXT')
+            pdf.set_font('Helvetica', '', 7)
+            for it in itens:
+                pdf.multi_cell(UTIL, 3.5, _txt(f'  {it.quantidade} x {it.produto.nome if it.produto else "Produto"}'),
+                               new_x='LMARGIN', new_y='NEXT')
+            par(f'  1 x {brl(total)}', brl(total))
+            continue
+        item = bloco[1]
         pdf.set_font('Helvetica', 'B', 8)
         pdf.multi_cell(UTIL, 4, _txt(item.produto.nome if item.produto else 'Produto'), new_x='LMARGIN', new_y='NEXT')
         par(f'  {item.quantidade} x {brl(item.preco_unitario)}', brl(item.quantidade * item.preco_unitario))
@@ -141,7 +153,14 @@ def texto_whatsapp(venda, empresa):
     saudacao = f'Olá, {cliente.nome.split()[0]}!' if cliente and not cliente.padrao else 'Olá!'
     linhas = [f'{saudacao} Segue o comprovante da sua compra na *{empresa.nome}* 🍫', '',
               f'*Venda nº {venda.id}* — {venda.data.strftime("%d/%m/%Y %H:%M")}']
-    for item in venda.itens:
+    from app.combos import agrupar
+    for bloco in agrupar(venda.itens):
+        if bloco[0] == 'combo':
+            _, combo, itens, total = bloco
+            escolhidos = ', '.join(f'{it.quantidade}x {it.produto.nome if it.produto else "Produto"}' for it in itens)
+            linhas.append(f'• 🎁 Combo {combo.nome if combo else ""} ({escolhidos}) — {brl(total)}')
+            continue
+        item = bloco[1]
         nome = item.produto.nome if item.produto else 'Produto'
         linhas.append(f'• {item.quantidade}x {nome} — {brl(item.quantidade * item.preco_unitario)}')
     linhas += ['', f'*Total: {brl(venda.total)}*']
