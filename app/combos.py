@@ -40,6 +40,11 @@ def rotulo_curto(nome):
     return curto or nome
 
 
+def tem_estoque(c, disponivel):
+    """Dá para montar pelo menos 1 combo? disponivel(produto) = unidades que podem ser vendidas."""
+    return sum(max(disponivel(p), 0) for p in c.produtos) >= c.quantidade
+
+
 def combo_dict(c, so_produtos=None):
     ids = [p.id for p in c.produtos if so_produtos is None or p.id in so_produtos]
     return {'id': c.id, 'nome': c.nome, 'rotulo': rotulo_curto(c.nome), 'quantidade': c.quantidade,
@@ -184,9 +189,10 @@ def _dados_do_form(combo):
 def lista():
     hoje = agora().date()
     combos = Combo.query.order_by(Combo.ativo.desc(), Combo.nome).all()
+    estoque = {c.id: sum(max(p.quantidade or 0, 0) for p in c.produtos) for c in combos}
     usos = dict(db.session.query(ItemVenda.combo_id, db.func.count(db.distinct(ItemVenda.venda_id)))
                 .filter(ItemVenda.combo_id.isnot(None)).group_by(ItemVenda.combo_id).all())
-    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos)
+    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos, estoque=estoque)
 
 
 @bp.route('/novo', methods=['GET', 'POST'])

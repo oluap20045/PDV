@@ -117,8 +117,10 @@ def index():
     categorias = list(dict.fromkeys(i['categoria'] for i in itens))
     pagamentos = [p for p in PAGAMENTOS if p != 'Pix' or _pix_ok(emp)]
     na_vitrine = {i['id'] for i in itens}
-    combos = [d for d in (combo_dict(c, na_vitrine) for c in combos_validos('loja')) if d['produtos']]
     por_id = {i['id']: i for i in itens}
+    # só mostra o combo se o estoque livre (já descontadas as reservas) der para fechar pelo menos 1
+    combos = [d for d in (combo_dict(c, na_vitrine) for c in combos_validos('loja'))
+              if sum(por_id[pid]['max'] for pid in d['produtos']) >= d['quantidade']]
     for c in combos:
         opcoes = sorted((por_id[pid] for pid in c['produtos']), key=lambda i: -i['preco'])
         c['fotos'] = [i['foto'] for i in opcoes if i['foto']][:3]

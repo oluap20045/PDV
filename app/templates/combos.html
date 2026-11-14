@@ -7,7 +7,8 @@
     </div>
     <p class="text-muted small">“Leve 4 por R$ 12”: o cliente escolhe entre os produtos do combo e o desconto entra
         <strong>sozinho</strong> no PDV e na loja online assim que o carrinho fecha a quantidade.
-        Cada unidade dá baixa no estoque do próprio produto.</p>
+        Cada unidade dá baixa no estoque do próprio produto. Sem estoque para fechar o combo, ele some do PDV e da loja
+        sozinho e volta quando o estoque chegar.</p>
 
     {% if not combos %}
         <div class="alert alert-light border">Nenhum combo ainda. Crie o primeiro: por exemplo
@@ -38,6 +39,8 @@
                 {% elif not c.produtos %}<span class="badge bg-warning text-dark">Sem produtos</span>
                 {% elif c.inicio and c.inicio > hoje %}<span class="badge bg-info text-dark">Começa {{ c.inicio.strftime('%d/%m') }}</span>
                 {% elif c.fim and c.fim < hoje %}<span class="badge bg-secondary">Venceu {{ c.fim.strftime('%d/%m') }}</span>
+                {% elif estoque[c.id] < c.quantidade %}<span class="badge bg-warning text-dark" title="Some do PDV e da loja até chegar estoque; volta sozinho">Sem estoque</span>
+                    <div class="text-muted">tem {{ estoque[c.id] }} de {{ c.quantidade }}</div>
                 {% else %}<span class="badge bg-success">Valendo</span>{% if c.fim %} até {{ c.fim.strftime('%d/%m') }}{% endif %}{% endif %}
             </td>
             <td class="text-nowrap text-end">

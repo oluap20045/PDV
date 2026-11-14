@@ -14,7 +14,7 @@ from app.models import (NOME_CONTA_TAXAS, FORMAS_CARTAO, FORMA_CREDITO, BANDEIRA
                         TaxaPagamento, VendaPagamento, Empresa)
 from urllib.parse import quote
 from app.precificacao import registrar_entrada, parametros as parametros_preco
-from app.combos import combo_dict, combos_validos, conferir_grupos
+from app.combos import combo_dict, combos_validos, conferir_grupos, tem_estoque
 import re
 # Crie um Blueprint chamado 'main'
 bp = Blueprint('main', __name__)
@@ -366,7 +366,8 @@ def venda_pdv():
                                                  'preco': None if it.combo_id else it.preco_unitario}
                                                 for it in pedido.itens]}
     return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima, pedido=pedido, pedido_js=pedido_js,
-                           combos=[combo_dict(c) for c in combos_validos('pdv')],
+                           # combo sem estoque para fechar nem aparece (volta sozinho quando o estoque chega)
+                           combos=[combo_dict(c) for c in combos_validos('pdv') if tem_estoque(c, lambda p: p.quantidade)],
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
                            formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,

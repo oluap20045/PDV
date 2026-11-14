@@ -132,6 +132,8 @@ guarda o custo certo (o preço do combo é dividido entre as unidades; linhas ma
   baratos por unidade primeiro; unidades mais caras entram primeiro; só monta se sair mais barato que avulso.
 - No PDV, item com preço mexido à mão (ou "desconto em tudo") fica fora dos combos. O servidor confere cada combo
   que chega do PDV (quantidade, produtos, preço, validade) e recusa a venda se não fechar.
+- Sem estoque para fechar pelo menos 1 combo, ele some sozinho (loja: estoque livre, já sem as reservas de pedidos;
+  PDV: estoque da prateleira) e volta quando o estoque chega. O "Ativo" não é mexido.
 - Combo já usado em venda/pedido não é apagado: "excluir" desativa, para o histórico continuar mostrando o combo.
 
 ## Loja online (`/loja`)
