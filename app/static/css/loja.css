@@ -182,19 +182,80 @@ legend { font-size: .9rem; font-weight: 600; color: var(--cacau-700); margin-bot
 .reabre { font-size: 1.15rem; color: var(--cacau-800) !important; }
 
 /* combos "leve N por R$ X" */
-.combos { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; scrollbar-width: none; }
-.combos::-webkit-scrollbar { display: none; }
-.combo {
-    flex: none; width: min(78vw, 280px); text-align: left; display: flex; flex-direction: column; gap: 4px;
-    border: 2px dashed var(--caramelo); border-radius: 14px; padding: 12px 14px; background: #fff7ec; color: var(--cacau-800);
+.promos { margin: 4px 0 18px; }
+.promos-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin-bottom: 10px; }
+.promos-cabeca h2 { margin: 0; font-size: 1.15rem; color: var(--cacau-800); letter-spacing: -.01em; }
+.promos-cabeca p { margin: 0; font-size: .85rem; color: var(--texto-2); }
+.promos-lista {
+    display: grid; grid-auto-flow: column; grid-auto-columns: min(84%, 340px); gap: 12px;
+    overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 10px; margin: 0 -2px;
+    scrollbar-width: none; overscroll-behavior-x: contain;
 }
-.combo[aria-pressed="true"] { border-style: solid; background: var(--creme-2); box-shadow: inset 0 0 0 1px var(--caramelo); }
-.combo strong { font-size: 1rem; line-height: 1.25; }
-.combo small { color: var(--texto-2); font-size: .8rem; }
-.combo-selo {
-    align-self: flex-start; background: var(--caramelo); color: var(--cacau-900); border-radius: 999px;
-    padding: 2px 10px; font-weight: 700; font-size: .8rem;
+.promos-lista::-webkit-scrollbar { display: none; }
+@media (min-width: 720px) {
+    .promos-lista { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); overflow: visible; }
 }
+.promo {
+    scroll-snap-align: start; display: grid; grid-template-columns: 96px 1fr; grid-template-rows: 1fr auto; gap: 10px 14px;
+    background: var(--branco); border-radius: var(--raio); padding: 12px; box-shadow: var(--sombra);
+    border: 2px solid transparent; transition: border-color .15s;
+}
+.promo.ativo { border-color: var(--caramelo); }
+.promo.pronto { border-color: var(--verde); }
+.promo-fotos { grid-row: 1; position: relative; width: 96px; height: 96px; }
+.promo-fotos img, .promo-fotos span {
+    position: absolute; width: 64px; height: 64px; border-radius: 14px; object-fit: contain; background: #fff;
+    border: 2px solid var(--branco); box-shadow: 0 4px 10px -4px rgba(43, 26, 16, .35);
+}
+.promo-fotos span { display: grid; place-items: center; font-size: 2rem; background: var(--creme-2); }
+/* 1 foto: grande no centro; 2-3 fotos: em leque, a principal na frente */
+.promo-fotos.n1 img, .promo-fotos.n0 span { width: 96px; height: 96px; top: 0; left: 0; }
+.promo-fotos img:nth-child(1) { z-index: 3; top: 26px; left: 0; }
+.promo-fotos img:nth-child(n+2) { background: var(--creme); }
+.promo-fotos img:nth-child(2) { z-index: 2; top: 13px; left: 16px; transform: rotate(6deg); }
+.promo-fotos img:nth-child(3) { z-index: 1; top: 0; left: 32px; transform: rotate(12deg); }
+.promo-fotos img:nth-child(n+4) { display: none; }
+.promo-fotos.n2 img:nth-child(1) { top: 26px; left: 4px; }
+.promo-fotos.n2 img:nth-child(2) { top: 6px; left: 28px; }
+.promo-corpo { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.promo-oferta { margin: 0; font-size: .95rem; color: var(--cacau-700); line-height: 1.15; }
+.promo-oferta strong { font-size: 1.55rem; font-weight: 800; color: var(--cacau-800); letter-spacing: -.02em; }
+.promo-nome { margin: 2px 0 0; font-size: .95rem; font-weight: 600; line-height: 1.25; color: var(--texto); }
+.promo-info { margin: 0; font-size: .8rem; color: var(--texto-2); }
+.promo-economia {
+    margin: 4px 0 0; align-self: flex-start; font-size: .75rem; font-weight: 700; color: var(--verde);
+    background: #e7f4ec; border-radius: 999px; padding: 2px 8px;
+}
+.promo-rodape { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; }
+.promo-progresso small { display: block; font-size: .8rem; color: var(--cacau-700); margin-top: 4px; font-weight: 600; }
+.promo.pronto .promo-progresso small { color: var(--verde); }
+.promo-botao {
+    width: 100%; border: 0; border-radius: 10px; padding: 10px; font-weight: 700;
+    background: var(--caramelo); color: var(--cacau-900);
+}
+.promo.pronto .promo-botao { background: var(--creme-2); color: var(--cacau-800); }
+
+.progresso { height: 8px; border-radius: 999px; background: var(--creme-2); overflow: hidden; }
+.progresso span { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--caramelo); transition: width .25s ease; }
+.pronto .progresso span { background: var(--verde); }
+
+/* barra fixa enquanto monta um combo */
+.modo-combo {
+    position: sticky; top: 60px; z-index: 9; display: flex; align-items: center; gap: 12px;
+    margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: 14px;
+    background: var(--cacau-800); color: var(--creme); box-shadow: 0 8px 20px -12px rgba(43, 26, 16, .7);
+}
+.modo-combo[hidden] { display: none; }
+.modo-combo-texto { flex: 1; min-width: 0; }
+.modo-combo-texto strong { display: block; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modo-combo-texto small { display: block; font-size: .8rem; opacity: .9; margin: 1px 0 6px; }
+.modo-combo .progresso { background: rgba(251, 246, 239, .2); }
+.modo-combo-sair {
+    flex: none; border: 1px solid rgba(251, 246, 239, .45); background: none; color: inherit;
+    border-radius: 10px; padding: 8px 12px; font-weight: 600; font-size: .85rem;
+}
+@media (prefers-reduced-motion: reduce) { .progresso span, .promo { transition: none; } }
+
 .selo-combo {
     position: absolute; top: 8px; left: 8px; z-index: 1; background: var(--caramelo); color: var(--cacau-900);
     border-radius: 999px; padding: 2px 8px; font-size: .72rem; font-weight: 700; line-height: 1.5;

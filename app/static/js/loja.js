@@ -39,6 +39,74 @@
         }
     }
 
+    // ---------- modo "montando combo": só os sabores do combo + barra de progresso
+    let comboAtivo = null;
+    const reaisCurto = v => (Math.round(v * 100) % 100 === 0 ? String(Math.round(v)) : reais(v));
+
+    function montarCombo(id) {
+        const c = COMBOS.find(x => String(x.id) === String(id));
+        if (!c) return;
+        rastro('clique', 'Montar combo: ' + c.nome);
+        comboAtivo = c;
+        document.querySelectorAll('.chip').forEach(x => x.classList.remove('ativo'));
+        document.querySelectorAll('.produto').forEach(p => { p.hidden = !p.dataset.combos.split(' ').includes(String(c.id)); });
+        desenhar();
+        const barra = $('#modo-combo');
+        barra.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+
+    function sairDoCombo() {
+        comboAtivo = null;
+        document.querySelectorAll('.chip').forEach(x => x.classList.toggle('ativo', !x.dataset.cat));
+        document.querySelectorAll('.produto').forEach(p => { p.hidden = false; });
+        desenhar();
+    }
+
+    // progresso de cada combo: quantos combos fechados + quantos sabores já escolhidos para o próximo
+    function progresso(c, r) {
+        const fechados = r.grupos.filter(g => g.combo.id === c.id).length;
+        const parcial = c.produtos.reduce((s, id) => s + (r.resto[id] || 0), 0) % c.quantidade;
+        return {fechados, parcial};
+    }
+
+    function textoProgresso(c, p) {
+        if (p.parcial) {
+            const falta = c.quantidade - p.parcial;
+            return `${p.parcial} de ${c.quantidade} escolhido${p.parcial > 1 ? 's' : ''} · falta${falta > 1 ? 'm' : ''} ${falta}`
+                + (p.fechados ? ` (${p.fechados} combo${p.fechados > 1 ? 's' : ''} pronto${p.fechados > 1 ? 's' : ''})` : '');
+        }
+        if (p.fechados) return `✓ ${p.fechados > 1 ? p.fechados + ' combos prontos' : 'Combo pronto'} no carrinho`;
+        return `Escolha ${c.quantidade} sabores`;
+    }
+
+    function desenharPromos(r) {
+        COMBOS.forEach(c => {
+            const card = document.querySelector(`.promo[data-combo="${c.id}"]`);
+            if (!card) return;
+            const p = progresso(c, r);
+            const box = card.querySelector('.promo-progresso');
+            const ativo = p.fechados || p.parcial;
+            box.hidden = !ativo;
+            card.classList.toggle('pronto', !!p.fechados && !p.parcial);
+            card.classList.toggle('ativo', comboAtivo && comboAtivo.id === c.id);
+            if (ativo) {
+                box.querySelector('.progresso span').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : 100}%`;
+                box.querySelector('small').textContent = textoProgresso(c, p);
+            }
+            card.querySelector('.promo-botao').textContent = p.fechados && !p.parcial ? 'Montar outro' : (p.parcial ? 'Continuar' : 'Montar combo');
+        });
+        const barra = $('#modo-combo');
+        if (!barra) return;
+        barra.hidden = !comboAtivo;
+        if (comboAtivo) {
+            const c = comboAtivo, p = progresso(c, r);
+            $('#modo-combo-titulo').textContent = c.rotulo || c.nome;
+            $('#modo-combo-status').textContent = `${c.quantidade} por R$ ${reaisCurto(c.preco)} · ${textoProgresso(c, p)}`;
+            $('#modo-combo-barra').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : (p.fechados ? 100 : 0)}%`;
+            barra.classList.toggle('pronto', !!p.fechados && !p.parcial);
+        }
+    }
+
     // combos "leve N por R$ X" (mesma regra do servidor: static/js/combos.js)
     function combos() {
         const itens = Object.keys(carrinho).map(id => ({id: +id, qtd: carrinho[id], preco: produtos[id].preco}));
@@ -54,7 +122,7 @@
             const d = document.createElement('div');
             d.className = 'combo-linha';
             d.innerHTML = '<div><strong></strong><small></small></div><span class="economia"></span>';
-            d.querySelector('strong').textContent = '🎁 ' + g.combo.nome;
+            d.querySelector('strong').textContent = `🎁 ${g.combo.rotulo || g.combo.nome} · ${g.combo.quantidade} por R$ ${reaisCurto(g.combo.preco)}`;
             d.querySelector('small').textContent = Object.entries(qtdPorId).map(([id, q]) => `${q}× ${produtos[id].nome}`).join(', ');
             d.querySelector('.economia').textContent = `− R$ ${reais(g.economia)}`;
             box.appendChild(d);
@@ -62,7 +130,7 @@
         (window.Combos ? Combos.faltando(r.resto, COMBOS) : []).forEach(f => {
             const d = document.createElement('p');
             d.className = 'combo-falta';
-            d.textContent = `🎁 Falta${f.falta > 1 ? 'm' : ''} ${f.falta} para o combo ${f.combo.nome} (${f.combo.quantidade} por R$ ${reais(f.combo.preco)})`;
+            d.textContent = `Falta${f.falta > 1 ? 'm' : ''} ${f.falta} para fechar o combo ${f.combo.rotulo || f.combo.nome} (${f.combo.quantidade} por R$ ${reaisCurto(f.combo.preco)})`;
             box.appendChild(d);
         });
     }
@@ -73,6 +141,7 @@
         const qtd = ids.reduce((s, id) => s + carrinho[id], 0);
         const r = combos();
         desenharCombos(r);
+        desenharPromos(r);
         const total = ids.reduce((s, id) => s + carrinho[id] * produtos[id].preco, 0)
             - r.grupos.reduce((s, g) => s + g.economia, 0);
         $('#barra').hidden = !qtd;
@@ -110,21 +179,13 @@
         }
         if (b.classList.contains('chip')) {
             rastro('categoria', b.dataset.cat || 'Tudo');
+            comboAtivo = null;
             document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === b));
-            document.querySelectorAll('.combo').forEach(c => c.setAttribute('aria-pressed', 'false'));
             document.querySelectorAll('.produto').forEach(p => { p.hidden = !!b.dataset.cat && p.dataset.cat !== b.dataset.cat; });
+            desenhar();
         }
-        if (b.classList.contains('combo')) {     // mostra só os produtos que entram no combo (toque de novo = tudo)
-            const ligar = b.getAttribute('aria-pressed') !== 'true';
-            const c = COMBOS.find(x => String(x.id) === b.dataset.combo);
-            rastro('clique', 'Combo: ' + (c ? c.nome : b.dataset.combo));
-            document.querySelectorAll('.combo').forEach(x => x.setAttribute('aria-pressed', String(ligar && x === b)));
-            document.querySelectorAll('.chip').forEach(x => x.classList.toggle('ativo', !ligar && !x.dataset.cat));
-            document.querySelectorAll('.produto').forEach(p => {
-                p.hidden = ligar && !p.dataset.combos.split(' ').includes(b.dataset.combo);
-            });
-            if (ligar) document.getElementById('grade').scrollIntoView({behavior: 'smooth', block: 'start'});
-        }
+        if (b.classList.contains('promo-botao')) montarCombo(b.dataset.combo);
+        if (b.id === 'modo-combo-sair') sairDoCombo();
     });
 
     const dialogo = $('#carrinho');

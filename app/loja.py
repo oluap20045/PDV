@@ -118,6 +118,13 @@ def index():
     pagamentos = [p for p in PAGAMENTOS if p != 'Pix' or _pix_ok(emp)]
     na_vitrine = {i['id'] for i in itens}
     combos = [d for d in (combo_dict(c, na_vitrine) for c in combos_validos('loja')) if d['produtos']]
+    por_id = {i['id']: i for i in itens}
+    for c in combos:
+        opcoes = sorted((por_id[pid] for pid in c['produtos']), key=lambda i: -i['preco'])
+        c['fotos'] = [i['foto'] for i in opcoes if i['foto']][:3]
+        c['cada'] = round(c['preco'] / c['quantidade'], 2)
+        # "economize até": levando as opções mais caras (o cálculo real vem no carrinho)
+        c['economia_max'] = round(opcoes[0]['preco'] * c['quantidade'] - c['preco'], 2) if opcoes else 0
     for i in itens:
         i['combos'] = [c['id'] for c in combos if i['id'] in c['produtos']]
     return render_template('loja/index.html', empresa=emp, itens=itens, categorias=categorias, pagamentos=pagamentos,

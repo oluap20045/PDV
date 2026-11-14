@@ -1,6 +1,7 @@
 # Local: app/__init__.py
 
 import mimetypes
+import os
 
 from flask import Flask
 from config import Config
@@ -18,6 +19,16 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # CSS/JS com a versão no endereço (style.css?v=<data do arquivo>): a Cloudflare e o navegador guardam
+    # os arquivos por horas; mudou o arquivo, muda o endereço e todo mundo baixa o novo na hora.
+    @app.url_defaults
+    def _versao_static(endpoint, values):
+        if endpoint == 'static' and 'filename' in values and 'v' not in values:
+            try:
+                values['v'] = int(os.stat(os.path.join(app.static_folder, values['filename'])).st_mtime)
+            except OSError:
+                pass
 
     from app.auth import bp as auth_blueprint, exigir_login, login_manager
     login_manager.init_app(app)

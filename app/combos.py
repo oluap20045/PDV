@@ -8,6 +8,7 @@ Regra (igual no Python e no static/js/combos.js — mexeu num, mexa no outro):
 - o preço do combo é dividido igualmente entre as unidades; os centavos que sobram vão para as últimas.
 Cada unidade continua sendo do seu produto: baixa o estoque certo e guarda o custo certo.
 """
+import re
 from datetime import datetime
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -29,10 +30,20 @@ def combos_validos(onde):
     return [c for c in q.order_by(Combo.id).all() if c.valido(hoje)]
 
 
+_PRECO_NO_NOME = re.compile(r'[\s\-–—:|·]*\(?\b\d+\s*(un\.?|unid\.?)?\s*(por|x)\s*(r\$)?\s*\d+([.,]\d{1,2})?\s*(r\$|reais)?\)?\s*$',
+                            re.I)
+
+
+def rotulo_curto(nome):
+    """'Trufas LaCreme 13g 4 por 12 R$' -> 'Trufas LaCreme 13g' (a oferta já aparece em destaque ao lado)."""
+    curto = _PRECO_NO_NOME.sub('', nome or '').strip(' -–—:|·')
+    return curto or nome
+
+
 def combo_dict(c, so_produtos=None):
     ids = [p.id for p in c.produtos if so_produtos is None or p.id in so_produtos]
-    return {'id': c.id, 'nome': c.nome, 'quantidade': c.quantidade, 'preco': round(c.preco, 2), 'produtos': ids,
-            'titulo': c.titulo}
+    return {'id': c.id, 'nome': c.nome, 'rotulo': rotulo_curto(c.nome), 'quantidade': c.quantidade,
+            'preco': round(c.preco, 2), 'produtos': ids, 'titulo': c.titulo}
 
 
 def _distribuir(pegar, preco, n):

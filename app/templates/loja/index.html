@@ -1,4 +1,5 @@
 {% extends 'loja/base.html' %}
+{% macro reais(v) %}R$ {{ ('%d'|format(v)) if (v * 100)|round|int % 100 == 0 else ('%.2f'|format(v)).replace('.', ',') }}{% endmacro %}
 {% block topo_extra %}
     <button type="button" class="topo-carrinho" id="abrir-carrinho" aria-label="Abrir carrinho">
         🛒 <span id="topo-qtd" class="selo" hidden>0</span>
@@ -19,14 +20,33 @@
         </section>
     {% else %}
         {% if combos %}
-        <section class="combos" aria-label="Combos e promoções">
-            {% for c in combos %}
-            <button type="button" class="combo" data-combo="{{ c.id }}" aria-pressed="false">
-                <span class="combo-selo">🎁 {{ c.quantidade }} por R$ {{ ('%.2f'|format(c.preco)).replace('.', ',') }}</span>
-                <strong>{{ c.nome }}</strong>
-                <small>Escolha {{ c.quantidade }} entre {{ c.produtos|length }} opç{{ 'ão' if c.produtos|length == 1 else 'ões' }} · <u>ver opções</u></small>
-            </button>
-            {% endfor %}
+        <section class="promos" aria-labelledby="promos-titulo">
+            <div class="promos-cabeca">
+                <h2 id="promos-titulo">Combos com desconto</h2>
+                <p>Escolha os sabores: o desconto entra sozinho no carrinho.</p>
+            </div>
+            <div class="promos-lista">
+                {% for c in combos %}
+                <article class="promo" data-combo="{{ c.id }}">
+                    <div class="promo-fotos n{{ c.fotos|length }}" aria-hidden="true">
+                        {% for f in c.fotos %}<img src="{{ f }}" alt="" loading="lazy">{% else %}<span>🍫</span>{% endfor %}
+                    </div>
+                    <div class="promo-corpo">
+                        <p class="promo-oferta">{{ c.quantidade }} por <strong>{{ reais(c.preco) }}</strong></p>
+                        <h3 class="promo-nome">{{ c.rotulo }}</h3>
+                        <p class="promo-info">{{ reais(c.cada) }} cada · {{ c.produtos|length }} sabor{{ 'es' if c.produtos|length != 1 }}</p>
+                        {% if c.economia_max > 0.009 %}<p class="promo-economia">Economize até {{ reais(c.economia_max) }}</p>{% endif %}
+                    </div>
+                    <div class="promo-rodape">
+                        <div class="promo-progresso" hidden>
+                            <div class="progresso" aria-hidden="true"><span></span></div>
+                            <small aria-live="polite"></small>
+                        </div>
+                        <button type="button" class="promo-botao" data-combo="{{ c.id }}">Montar combo</button>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
         </section>
         {% endif %}
         {% if categorias|length > 1 %}
@@ -36,11 +56,20 @@
         </nav>
         {% endif %}
 
+        <div class="modo-combo" id="modo-combo" role="region" aria-label="Montando combo" hidden>
+            <div class="modo-combo-texto">
+                <strong id="modo-combo-titulo"></strong>
+                <small id="modo-combo-status" aria-live="polite"></small>
+                <div class="progresso" aria-hidden="true"><span id="modo-combo-barra"></span></div>
+            </div>
+            <button type="button" class="modo-combo-sair" id="modo-combo-sair">Ver tudo</button>
+        </div>
+
         <div class="grade" id="grade">
             {% for i in itens %}
             <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}">
                 <div class="produto-foto">
-                    {% for c in combos if c.id in i.combos %}{% if loop.first %}<span class="selo-combo">🎁 {{ c.quantidade }} por {{ ('%.0f'|format(c.preco)) if c.preco == c.preco|int else ('%.2f'|format(c.preco)).replace('.', ',') }}</span>{% endif %}{% endfor %}
+                    {% for c in combos if c.id in i.combos %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}
                     {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
                     {% else %}<span aria-hidden="true">🍫</span>{% endif %}
                 </div>
