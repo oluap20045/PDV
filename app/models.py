@@ -151,6 +151,9 @@ class Cliente(db.Model):
     whatsapp = db.Column(db.String(20))
     email = db.Column(db.String(150))
     cpf = db.Column(db.String(11), unique=True, index=True)   # só dígitos
+    bloco = db.Column(db.String(6), nullable=True)            # "1", "A" (sem a palavra "bloco")
+    apartamento = db.Column(db.String(8), nullable=True)      # "34", "101B"
+    origem = db.Column(db.String(12), nullable=True)          # como chegou: balcao | loja | sorteio
     criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
     padrao = db.Column(db.Boolean, nullable=False, default=False)   # "Consumidor final", pré-selecionado no PDV
     vendas = db.relationship('Venda', backref='cliente', lazy=True)
@@ -163,6 +166,14 @@ class Cliente(db.Model):
             db.session.add(cliente)
             db.session.commit()
         return cliente
+
+    __table_args__ = (db.Index('ix_cliente_bloco_apto', 'bloco', 'apartamento'),)
+
+    @property
+    def endereco(self):
+        """'Bl 1 · ap 34' (vazio se não tiver)."""
+        return ' · '.join(filter(None, [f'Bl {self.bloco}' if self.bloco else '',
+                                        f'ap {self.apartamento}' if self.apartamento else '']))
 
     def __repr__(self):
         return f'<Cliente {self.nome}>'
@@ -535,6 +546,7 @@ TIPOS_EVENTO = {
     'pedido': 'Fez pedido',
     'whatsapp': 'Clicou no WhatsApp',
     'pix': 'Copiou o Pix',
+    'sorteio': 'Inscreveu no sorteio',
     'clique': 'Outro clique',
 }
 
@@ -582,3 +594,54 @@ class Combo(db.Model):
         if self.promocao:
             return f'por R$ {self.preco:.2f}'.replace('.', ',')
         return f'{self.quantidade} por R$ {self.preco:.2f}'.replace('.', ',')
+
+
+# ---------------------------------------------------------------- Sorteios (formulário público + lista de inscritos)
+
+class Sorteio(db.Model):
+    """Sorteio com período de inscrição. A inscrição é pública (/loja/sorteio/<codigo>) e cada inscrito
+    vira (ou reaproveita) um Cliente, casado por nome + bloco + apartamento."""
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(16), nullable=False, unique=True)     # link público
+    premio = db.Column(db.String(120), nullable=False)                 # "Barra ao Leite 100 g"
+    descricao = db.Column(db.String(300), nullable=True)               # regras / recado
+    produto_id = db.Column(db.Integer, db.ForeignKey('produto.id', ondelete='SET NULL'), nullable=True)  # o prêmio (foto + estoque)
+    quantidade = db.Column(db.Integer, nullable=False, default=1)                                         # unidades do prêmio
+    # o prêmio sai do estoque (baixa como brinde) assim que o sorteio é salvo: não dá para vender sem querer
+    baixa_id = db.Column(db.Integer, db.ForeignKey('baixa_estoque.id', ondelete='SET NULL'), nullable=True)
+    inicio = db.Column(db.DateTime, nullable=False)
+    fim = db.Column(db.DateTime, nullable=False)
+    criado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    produto = db.relationship('Produto')
+    baixa = db.relationship('BaixaEstoque')
+    inscricoes = db.relationship('SorteioInscricao', backref='sorteio', lazy=True, cascade='all, delete-orphan',
+                                 order_by='SorteioInscricao.id')
+
+    def situacao(self, momento):
+        """'agendado' | 'aberto' | 'encerrado' | 'sorteado'"""
+        if self.ganhador:
+            return 'sorteado'
+        if momento < self.inicio:
+            return 'agendado'
+        return 'aberto' if momento < self.fim else 'encerrado'
+
+    @property
+    def sorteados(self):
+        """Inscrições já sorteadas, na ordem (a última é o ganhador; as anteriores não responderam)."""
+        return sorted((i for i in self.inscricoes if i.sorteado_em), key=lambda i: (i.sorteado_em, i.id))
+
+    @property
+    def ganhador(self):
+        s = self.sorteados
+        return s[-1] if s else None
+
+
+class SorteioInscricao(db.Model):
+    __tablename__ = 'sorteio_inscricao'
+    id = db.Column(db.Integer, primary_key=True)
+    sorteio_id = db.Column(db.Integer, db.ForeignKey('sorteio.id', ondelete='CASCADE'), nullable=False, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('cliente.id'), nullable=False, index=True)
+    criado_em = db.Column(db.DateTime, nullable=False)
+    sorteado_em = db.Column(db.DateTime, nullable=True)       # foi tirado no sorteio (o último é o ganhador)
+    cliente = db.relationship('Cliente')
+    __table_args__ = (db.UniqueConstraint('sorteio_id', 'cliente_id', name='uq_sorteio_cliente'),)

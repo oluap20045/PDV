@@ -828,6 +828,7 @@ def cpf_valido(cpf):
 
 
 def _cliente_do_form():
+    from app.sorteios import limpar_apto, limpar_bloco
     """Lê e valida o formulário. Devolve (dados, erro)."""
     dados = {
         'nome': request.form.get('nome', '').strip(),
@@ -835,6 +836,8 @@ def _cliente_do_form():
         'whatsapp': _so_digitos(request.form.get('whatsapp')) or None,
         'email': (request.form.get('email') or '').strip().lower() or None,
         'cpf': _so_digitos(request.form.get('cpf')) or None,
+        'bloco': limpar_bloco(request.form.get('bloco')) or None,
+        'apartamento': limpar_apto(request.form.get('apartamento')) or None,
     }
     if not dados['nome']:
         return dados, 'Informe o nome do cliente.'

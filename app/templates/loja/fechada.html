@@ -2,6 +2,13 @@
 {% from 'loja/_horarios.html' import tabela_horarios %}
 {% block pagina %}fechada{% endblock %}
 {% block content %}
+    {% if sorteio_aberto %}
+    <a class="chamada-sorteio" href="{{ url_for('sorteio_publico.pagina', codigo=sorteio_aberto.codigo) }}" data-rastro="clique|Chamada do sorteio">
+        <span aria-hidden="true">🎁</span>
+        <div><strong>Sorteio: {{ sorteio_aberto.premio }}</strong><small>Inscrições até {{ sorteio_fim }}</small></div>
+        <em>Participar ›</em>
+    </a>
+    {% endif %}
     <section class="vazio">
         <div class="vazio-icone" aria-hidden="true">🍫</div>
         <h1>Loja fechada no momento</h1>

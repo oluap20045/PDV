@@ -23,7 +23,15 @@
                     onclick="document.getElementById('whatsapp').value = document.getElementById('telefone').value">= Tel.</button>
         </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-2">
+        <label for="bloco" class="form-label">Bloco</label>
+        <input type="text" name="bloco" id="bloco" class="form-control" maxlength="10" autocomplete="off" value="{{ v.bloco or '' }}">
+    </div>
+    <div class="col-6 col-md-2">
+        <label for="apartamento" class="form-label">Apto</label>
+        <input type="text" name="apartamento" id="apartamento" class="form-control" maxlength="10" autocomplete="off" value="{{ v.apartamento or '' }}">
+    </div>
+    <div class="col-12 col-md-8">
         <label for="email" class="form-label">E-mail</label>
         <input type="email" name="email" id="email" class="form-control" placeholder="nome@exemplo.com" value="{{ v.email or '' }}">
     </div>

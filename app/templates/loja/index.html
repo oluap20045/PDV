@@ -14,6 +14,13 @@
         {{ tabela_horarios(empresa, 'Horários da semana') }}
     </details>
     {% if empresa.loja_aviso %}<div class="aviso">{{ empresa.loja_aviso }}</div>{% endif %}
+    {% if sorteio_aberto %}
+    <a class="chamada-sorteio" href="{{ url_for('sorteio_publico.pagina', codigo=sorteio_aberto.codigo) }}" data-rastro="clique|Chamada do sorteio">
+        <span aria-hidden="true">🎁</span>
+        <div><strong>Sorteio: {{ sorteio_aberto.premio }}</strong><small>Inscrições até {{ sorteio_fim }}</small></div>
+        <em>Participar ›</em>
+    </a>
+    {% endif %}
 
     {% if not itens %}
         <section class="vazio">

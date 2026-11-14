@@ -1,0 +1,99 @@
+{% extends 'loja/base.html' %}
+{% block titulo %}{% if s %}Sorteio: {{ s.premio }} · {% endif %}{{ empresa.nome }}{% endblock %}
+{% block pagina %}sorteio{% endblock %}
+{% block content %}
+{% if not s %}
+    <section class="vazio">
+        <div class="vazio-icone" aria-hidden="true">🎁</div>
+        <h1>Nenhum sorteio no momento</h1>
+        <p>Fique de olho no grupo do condomínio: logo tem mais.</p>
+        <a class="voltar" href="{{ url_for('loja.index') }}">Ver a loja</a>
+    </section>
+{% else %}
+    <article class="sorteio">
+        <div class="sorteio-topo">
+            <span class="sorteio-selo">🎁 Sorteio</span>
+            <h1>{{ s.premio }}</h1>
+            {% if situacao == 'aberto' %}
+                <p class="sorteio-prazo">Inscrições até <strong>{{ fim }}</strong>
+                    <span id="contagem" data-fim="{{ fim_iso }}" data-agora="{{ agora_iso }}"></span></p>
+            {% endif %}
+        </div>
+        {% if foto %}<div class="sorteio-foto"><img src="{{ foto }}" alt="{{ s.premio }}"></div>{% endif %}
+        {% if s.descricao %}<p class="sorteio-desc">{{ s.descricao }}</p>{% endif %}
+
+        {% if erro and situacao != 'aberto' %}<p class="erro sorteio-erro" role="alert">{{ erro }}</p>{% endif %}
+        {% if situacao == 'sorteado' %}
+            <div class="sorteio-resultado">
+                <span aria-hidden="true">🎉</span>
+                <small>Quem ganhou</small>
+                <strong>{{ ganhador }}</strong>
+                <p>Parabéns! Vamos chamar no WhatsApp para combinar a entrega.</p>
+            </div>
+        {% elif inscrito %}
+            <div class="sorteio-ok" role="status">
+                <span aria-hidden="true">✅</span>
+                <strong>{% if inscrito.ja == 'eu' %}{{ inscrito.nome }}, você já está participando!
+                    {%- elif inscrito.ja == 'apto' %}{{ inscrito.nome }}, seu apartamento já está participando!
+                    {%- else %}Pronto, {{ inscrito.nome }}! Você está participando.{% endif %}</strong>
+                {% if inscrito.ja == 'apto' %}<p>Alguém do seu apê já se inscreveu, e vale <strong>uma inscrição por apartamento</strong>
+                    para ser justo com todo mundo. Se o apê ganhar, a gente avisa no WhatsApp de quem se inscreveu.</p>{% endif %}
+                <p>{% if situacao == 'aberto' %}O sorteio sai depois de {{ fim }}.{% else %}O resultado sai em breve.{% endif %}
+                    Se você ganhar, a gente chama no seu WhatsApp.</p>
+            </div>
+            <a class="botao-zap" data-rastro="clique|Convidar vizinho para o sorteio"
+               href="https://wa.me/?text={{ ('Tá rolando um sorteio de ' ~ s.premio ~ ' no ' ~ empresa.nome ~ '! Inscreva-se: ' ~ request.url)|urlencode }}"
+               target="_blank" rel="noopener">Chamar um vizinho pelo WhatsApp</a>
+        {% elif situacao == 'aberto' %}
+            <form method="POST" class="form-pedido sorteio-form" novalidate>
+                <label>Nome e sobrenome
+                    <input name="nome" autocomplete="name" required maxlength="150" value="{{ form.nome or '' }}"></label>
+                <label>WhatsApp (com DDD)
+                    <input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="(41) 99999-9999"
+                           required value="{{ form.whatsapp or '' }}"></label>
+                <div class="sorteio-apto">
+                    <label>Bloco
+                        <input name="bloco" required maxlength="10" placeholder="1" autocomplete="off" value="{{ form.bloco or '' }}"></label>
+                    <label>Apartamento
+                        <input name="apartamento" required maxlength="10" inputmode="numeric" placeholder="34" autocomplete="off"
+                               value="{{ form.apartamento or '' }}"></label>
+                </div>
+                <input name="site" class="isca" tabindex="-1" autocomplete="off" aria-hidden="true">
+                {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
+                <button type="submit" class="enviar">Quero participar</button>
+                <small class="sorteio-letra">Uma inscrição por apartamento. Ao participar você aceita receber novidades e promoções
+                    da {{ empresa.nome }} pelo WhatsApp (é só pedir para sair).</small>
+            </form>
+        {% elif situacao == 'agendado' %}
+            <div class="sorteio-aviso">As inscrições abrem <strong>{{ inicio }}</strong>. Volte aqui!</div>
+        {% else %}
+            <div class="sorteio-aviso">Inscrições encerradas{% if total %} com {{ total }} {{ 'participante' if total == 1 else 'participantes' }}{% endif %}.
+                O resultado sai em breve, aqui mesmo.</div>
+        {% endif %}
+    </article>
+    <a class="voltar" href="{{ url_for('loja.index') }}">🍫 Ver os chocolates da loja</a>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    'use strict';
+    {% if inscrito and not inscrito.ja %}
+    if (window.lojaRastro) { try { if (!sessionStorage.getItem('sorteio-contado-{{ s.id }}')) { lojaRastro('sorteio', {{ s.premio|tojson }}); sessionStorage.setItem('sorteio-contado-{{ s.id }}', '1'); } } catch (e) { /* ok */ } }
+    {% endif %}
+    const el = document.getElementById('contagem');
+    if (!el) return;
+    // relógio do servidor (horário de Brasília), corrigido pela diferença para o relógio do celular
+    const desvio = new Date(el.dataset.agora).getTime() - Date.now();
+    const fim = new Date(el.dataset.fim).getTime();
+    function tique() {
+        const s = Math.floor((fim - Date.now() - desvio) / 1000);
+        if (s <= 0) { el.textContent = '· encerrando…'; setTimeout(() => location.reload(), 2000); return; }
+        const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+        el.textContent = '· faltam ' + (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';
+        setTimeout(tique, 15000);
+    }
+    tique();
+})();
+</script>
+{% endblock %}

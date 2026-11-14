@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="mb-0">🎁 Sorteios</h2>
+        <a href="{{ url_for('sorteios.editar') }}" class="btn btn-success">+ Novo sorteio</a>
+    </div>
+    <p class="text-muted small">Crie o sorteio com o período de inscrição e mande o link no grupo. Quem se inscreve
+        (nome, WhatsApp, bloco e apartamento) entra na <strong>lista de clientes</strong>. A mesma pessoa no mesmo apartamento
+        nunca é cadastrada duas vezes. Quando as inscrições acabam o formulário sai do ar sozinho, e aqui você sorteia entre os inscritos.</p>
+
+    {% if not sorteios %}
+        <div class="alert alert-light border">Nenhum sorteio ainda. Crie o primeiro, por exemplo
+            <em>Barra ao Leite</em> com inscrições até amanhã às 18h.</div>
+    {% else %}
+    <div class="table-responsive">
+    <table class="table align-middle">
+        <thead><tr><th>Prêmio</th><th>Inscrições</th><th class="text-end">Inscritos</th><th>Situação</th></tr></thead>
+        <tbody>
+        {% for s in sorteios %}
+        {% set sit = s.situacao(momento) %}
+        <tr>
+            <td><a href="{{ url_for('sorteios.ver', id=s.id) }}" class="fw-semibold">{{ s.premio }}</a></td>
+            <td class="small text-nowrap">{{ s.inicio.strftime('%d/%m %H:%M') }} → {{ s.fim.strftime('%d/%m %H:%M') }}</td>
+            <td class="text-end">{{ s.inscricoes|length }}</td>
+            <td class="small">
+                {% if sit == 'aberto' %}<span class="badge bg-success">{{ SITUACAO[sit] }}</span>
+                {% elif sit == 'agendado' %}<span class="badge bg-info text-dark">{{ SITUACAO[sit] }}</span>
+                {% elif sit == 'encerrado' %}<span class="badge bg-warning text-dark">{{ SITUACAO[sit] }}</span>
+                {% else %}<span class="badge bg-light text-dark border">🎉 {{ s.ganhador.cliente.nome }}</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+{% endblock %}

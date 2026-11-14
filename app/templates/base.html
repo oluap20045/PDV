@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/natureza.css') }}">
     {% block head %}{% endblock %}
 </head>
-<body class="tema-natureza">
+<body class="tema-natureza"{% if current_user.is_authenticated %} data-alarme-url="{{ url_for('loja_admin.alarme') }}"{% endif %}>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('main.index') }}"><span aria-hidden="true">🌿</span> PDV</a>
@@ -20,13 +20,15 @@
             <div class="collapse navbar-collapse" id="menu-principal">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('main.venda_pdv') }}">PDV</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url_for('pedidos.pedidos') }}">Pedidos{% if pedidos_loja_abertos %}
-                        <span class="badge rounded-pill bg-warning text-dark" title="Pedidos da loja online em aberto">🛒 {{ pedidos_loja_abertos }}</span>{% endif %}</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('pedidos.pedidos') }}">Pedidos
+                        <span class="badge rounded-pill bg-warning text-dark" id="selo-pedidos-loja" title="Pedidos da loja online em aberto"
+                              {{ '' if pedidos_loja_abertos else 'hidden' }}>🛒 {{ pedidos_loja_abertos }}</span></a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="menu-loja" role="button" data-bs-toggle="dropdown" aria-expanded="false">Loja online</a>
                         <ul class="dropdown-menu" aria-labelledby="menu-loja">
                             <li><a class="dropdown-item" href="{{ url_for('loja_admin.config') }}">Configurar loja</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('loja_admin.acessos') }}">Acessos (tráfego)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('sorteios.lista') }}">🎁 Sorteios</a></li>
                         </ul>
                     </li>
                     <li class="nav-item dropdown">
@@ -62,6 +64,8 @@
                     </li>
                 </ul>
                 <ul class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="#" id="alarme-sino" role="button" aria-pressed="true"
+                        title="Alarme de pedido da loja">🔔</a></li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="menu-usuario" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <span aria-hidden="true">👤</span> {{ current_user.nome.split()[0] }}
@@ -95,6 +99,20 @@
         {% block content %}{% endblock %}
         </div>
     </div>
+
+    {% if current_user.is_authenticated %}
+    <!-- Alarme de pedido da loja (static/js/alarme.js) -->
+    <div id="alarme-aviso" class="alarme-aviso" role="alertdialog" aria-labelledby="alarme-titulo" hidden>
+        <div class="alarme-cabeca"><span aria-hidden="true">🔔</span> <strong id="alarme-titulo" data-alarme-titulo>Novo pedido na loja!</strong></div>
+        <ul class="alarme-lista" data-alarme-lista></ul>
+        <p id="alarme-sem-som" class="alarme-sem-som" hidden>🔇 Clique em qualquer lugar da página para o alarme poder tocar.</p>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('pedidos.pedidos') }}" class="btn btn-success flex-fill" data-alarme-ver>Ver pedidos</a>
+            <button type="button" class="btn btn-outline-secondary flex-fill" data-alarme-ok>Vi o pedido</button>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/alarme.js') }}"></script>
+    {% endif %}
 
     <!-- Leitor de código de barras (câmera), usado no cadastro e no PDV -->
     <div class="modal fade" id="scanner-modal" tabindex="-1" aria-labelledby="scanner-titulo" aria-hidden="true">

@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set g = s.ganhador %}
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <a href="{{ url_for('sorteios.lista') }}" class="small">‹ Sorteios</a>
+            <h2 class="mb-1">🎁 {{ s.premio }}</h2>
+            <div class="text-muted small">
+                {% if situacao == 'aberto' %}<span class="badge bg-success">{{ SITUACAO[situacao] }}</span> até {{ fim }}
+                {% elif situacao == 'agendado' %}<span class="badge bg-info text-dark">{{ SITUACAO[situacao] }}</span> abre {{ inicio }}
+                {% elif situacao == 'encerrado' %}<span class="badge bg-warning text-dark">{{ SITUACAO[situacao] }}</span> inscrições encerradas
+                {% else %}<span class="badge bg-light text-dark border">🎉 Sorteado</span>{% endif %}
+                · {{ s.inicio.strftime('%d/%m %H:%M') }} → {{ s.fim.strftime('%d/%m %H:%M') }}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('sorteios.editar', id=s.id) }}" class="btn btn-outline-secondary btn-sm">Editar</a>
+            <form method="POST" action="{{ url_for('sorteios.excluir', id=s.id) }}"
+                  onsubmit="return confirm('Excluir este sorteio e a lista de inscritos? Os clientes continuam cadastrados.')">
+                <button class="btn btn-outline-danger btn-sm">Excluir</button></form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-7">
+            <div class="border rounded-3 p-3 h-100">
+                <label class="form-label fw-semibold" for="link-sorteio">Link para divulgar</label>
+                <div class="input-group">
+                    <input id="link-sorteio" class="form-control" readonly value="{{ link }}" onclick="this.select()">
+                    <button type="button" class="btn btn-outline-secondary" id="copiar-link">Copiar</button>
+                </div>
+                {% set texto = '🎁 *Sorteio: ' ~ s.premio ~ '!*\n\nInscreva-se até ' ~ fim ~ ' (é rapidinho: nome, WhatsApp, bloco e apto):\n👉 ' ~ link %}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <a class="btn btn-success btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text={{ texto|urlencode }}">Mandar no WhatsApp</a>
+                    <a class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener" href="{{ url_for('sorteio_publico.pagina', codigo=s.codigo) }}">Ver a página</a>
+                </div>
+                <div class="form-text">A loja também mostra a chamada do sorteio no topo enquanto as inscrições estão abertas.</div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-5">
+            <div class="border rounded-3 p-3 h-100 text-center d-flex flex-column justify-content-center">
+                <div class="display-6 fw-bold">{{ s.inscricoes|length }}</div>
+                <div class="text-muted">{{ 'inscrito' if s.inscricoes|length == 1 else 'inscritos' }}
+                    {% if novos %}· <strong>{{ novos }}</strong> {{ 'cliente novo' if novos == 1 else 'clientes novos' }} na lista{% endif %}</div>
+                <div class="small mt-2">{% if reserva %}🔒 Prêmio reservado: {{ reserva.quantidade }} × {{ reserva.produto.nome }}
+                    <span class="text-muted">(fora do estoque)</span>
+                    {% elif s.produto %}<span class="text-danger">⚠️ Reserva desfeita: {{ s.produto.nome }} voltou a ficar à venda.
+                    Salve o sorteio de novo para reservar.</span>
+                    {% else %}<span class="text-muted">Prêmio sem produto do estoque</span>{% endif %}</div>
+            </div>
+        </div>
+    </div>
+
+    {# ---- sorteio #}
+    <div class="sorteio-palco border rounded-3 p-4 mb-3 text-center" id="palco">
+        <div id="rolando" class="sorteio-rolando" aria-live="polite">
+            {% if g %}🎉 {{ g.cliente.nome }}{% elif s.inscricoes %}?{% else %}Sem inscritos ainda{% endif %}</div>
+        <div id="detalhe" class="text-muted mb-3">
+            {% if g %}{{ g.cliente.endereco }} · página pública mostra “{{ nome_publico(g.cliente) }}”{% endif %}</div>
+        <div id="acoes-ganhador" class="d-flex flex-wrap justify-content-center gap-2 mb-3" {{ '' if g and g.cliente.whatsapp else 'hidden' }}>
+            <a id="zap-ganhador" class="btn btn-success" target="_blank" rel="noopener"
+               data-msg="🎉 Parabéns, {nome}! Você ganhou o sorteio de *{{ s.premio }}* da {{ empresa.nome }}! Quando posso entregar no seu apê?"
+               href="{% if g and g.cliente.whatsapp %}https://wa.me/55{{ g.cliente.whatsapp }}?text={{ ('🎉 Parabéns, ' ~ g.cliente.nome.split(' ')[0] ~ '! Você ganhou o sorteio de *' ~ s.premio ~ '* da ' ~ empresa.nome ~ '! Quando posso entregar no seu apê?')|urlencode }}{% endif %}">
+                Avisar o ganhador no WhatsApp</a>
+        </div>
+        {% set restantes = s.inscricoes|rejectattr('sorteado_em')|list|length %}
+        {% if situacao != 'agendado' and restantes %}
+            <button type="button" class="btn {{ 'btn-outline-secondary' if g else 'btn-primary btn-lg' }}" id="sortear"
+                    data-url="{{ url_for('sorteios.sortear', id=s.id) }}" data-aberto="{{ '1' if situacao == 'aberto' else '' }}"
+                    data-nomes="{{ s.inscricoes|rejectattr('sorteado_em')|map(attribute='cliente.nome')|list|tojson|forceescape }}">
+                {{ '🔁 Sortear de novo (não respondeu)' if g else '🎲 Sortear agora' }}</button>
+        {% endif %}
+        {% if s.sorteados|length > 1 %}
+            <div class="small text-muted mt-3">Sorteados antes (não responderam):
+                {{ s.sorteados[:-1]|map(attribute='cliente.nome')|join(', ') }}</div>
+        {% endif %}
+    </div>
+
+    <h3 class="h5">Inscritos</h3>
+    {% if not s.inscricoes %}
+        <p class="text-muted">Ninguém se inscreveu ainda.</p>
+    {% else %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead><tr><th>#</th><th>Nome</th><th>Bloco / apto</th><th>WhatsApp</th><th>Inscrição</th><th></th></tr></thead>
+        <tbody>
+        {% for i in s.inscricoes %}
+        <tr class="{{ 'table-warning' if g and i.id == g.id }}">
+            <td class="text-muted">{{ loop.index }}</td>
+            <td>{{ i.cliente.nome }}{% if g and i.id == g.id %} 🎉{% endif %}
+                {% if i.cliente.origem == 'sorteio' and i.cliente.criado_em >= s.criado_em %}<span class="badge bg-light text-dark border">novo</span>{% endif %}</td>
+            <td class="text-nowrap">{{ i.cliente.endereco or '—' }}</td>
+            <td class="text-nowrap">{% if i.cliente.whatsapp %}<a href="https://wa.me/55{{ i.cliente.whatsapp }}" target="_blank" rel="noopener">{{ i.cliente.whatsapp|telefone }}</a>{% else %}—{% endif %}</td>
+            <td class="small text-nowrap">{{ i.criado_em.strftime('%d/%m %H:%M') }}</td>
+            <td class="text-end">{% if not i.sorteado_em %}
+                <form method="POST" action="{{ url_for('sorteios.remover_inscricao', id=s.id, iid=i.id) }}"
+                      onsubmit="return confirm('Tirar {{ i.cliente.nome|e }} deste sorteio?')">
+                    <button class="btn btn-sm btn-outline-danger" title="Tirar do sorteio">✕</button></form>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+{% endblock %}
+{% block scripts %}
+<style>
+    .sorteio-palco { background: linear-gradient(135deg, #f6fbf3, #eef6e9); }
+    .sorteio-rolando { font-size: clamp(1.6rem, 5vw, 2.6rem); font-weight: 800; min-height: 1.4em; letter-spacing: -.01em; }
+    .sorteio-rolando.girando { color: #6c757d; }
+    .sorteio-rolando.saiu { animation: saiu .6s ease-out; }
+    @keyframes saiu { 0% { transform: scale(.7); opacity: .3; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .sorteio-rolando.saiu { animation: none; } }
+</style>
+<script>
+(function () {
+    'use strict';
+    const copiar = document.getElementById('copiar-link');
+    copiar && copiar.addEventListener('click', async () => {
+        const campo = document.getElementById('link-sorteio');
+        try { await navigator.clipboard.writeText(campo.value); } catch (e) { campo.select(); document.execCommand('copy'); }
+        copiar.textContent = 'Copiado ✓'; setTimeout(() => { copiar.textContent = 'Copiar'; }, 2000);
+    });
+
+    const botao = document.getElementById('sortear');
+    if (!botao) return;
+    const rolando = document.getElementById('rolando'), detalhe = document.getElementById('detalhe');
+    const nomes = JSON.parse(botao.dataset.nomes || '[]');
+    botao.addEventListener('click', async () => {
+        if (botao.dataset.aberto && !confirm('As inscrições ainda estão abertas. Sortear agora encerra as inscrições. Continuar?')) return;
+        botao.disabled = true;
+        detalhe.textContent = '';
+        rolando.classList.remove('saiu'); rolando.classList.add('girando');
+        const pedido = fetch(botao.dataset.url, {method: 'POST', headers: {'Accept': 'application/json'}})
+            .then(r => r.json().then(d => (r.ok ? d : Promise.reject(new Error(d.erro || 'Erro ao sortear.')))));
+        // suspense: nomes passando cada vez mais devagar (~3 s)
+        let atraso = 50;
+        const fim = Date.now() + 3000;
+        while (Date.now() < fim) {
+            rolando.textContent = nomes[Math.floor(Math.random() * nomes.length)] || '?';
+            await new Promise(ok => setTimeout(ok, atraso));
+            atraso = Math.min(atraso * 1.12, 320);
+        }
+        try {
+            const d = await pedido;
+            rolando.classList.remove('girando'); rolando.classList.add('saiu');
+            rolando.textContent = '🎉 ' + d.nome;
+            detalhe.textContent = (d.endereco ? d.endereco + ' · ' : '') + 'página pública mostra “' + d.publico + '”';
+            const zap = document.getElementById('zap-ganhador');
+            if (d.whatsapp) {
+                zap.href = 'https://wa.me/55' + d.whatsapp + '?text=' + encodeURIComponent(zap.dataset.msg.replace('{nome}', d.nome.split(' ')[0]));
+                document.getElementById('acoes-ganhador').hidden = false;
+            }
+            botao.hidden = true;
+            setTimeout(() => location.reload(), 6000);   // atualiza a lista (ganhador marcado, botão "sortear de novo")
+        } catch (e) {
+            rolando.classList.remove('girando');
+            rolando.textContent = '?';
+            detalhe.textContent = e.message;
+            botao.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}

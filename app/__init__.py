@@ -49,6 +49,9 @@ def create_app(config_class=Config):
     from app.loja import bp as loja_blueprint, bp_admin as loja_admin_blueprint, pedidos_loja_novos
     app.register_blueprint(loja_blueprint)        # público (sem login): ver LOJA_PUBLICA em auth.py
     app.register_blueprint(loja_admin_blueprint)
+    from app.sorteios import bp as sorteios_blueprint, bp_publico as sorteio_publico_blueprint
+    app.register_blueprint(sorteio_publico_blueprint)   # público como a loja (/loja/sorteio/...)
+    app.register_blueprint(sorteios_blueprint)
 
     @app.context_processor
     def _selo_loja():

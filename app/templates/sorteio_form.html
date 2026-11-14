@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% set v = form if form else {} %}
+{% macro dt(campo, padrao) %}{{ v.get(campo) or ((s[campo] if s else padrao[campo]).strftime('%Y-%m-%dT%H:%M')) }}{% endmacro %}
+{% block content %}
+    <h2>{{ 'Editar sorteio' if s else 'Novo sorteio' }}</h2>
+    <form method="POST" class="row g-3" style="max-width: 760px">
+        <div class="col-12 col-md-7">
+            <label for="premio" class="form-label">Prêmio *</label>
+            <input id="premio" name="premio" class="form-control" required maxlength="120" placeholder="Barra ao Leite 100 g"
+                   value="{{ v.get('premio') or (s.premio if s else '') }}">
+        </div>
+        <div class="col-12 col-md-5">
+            <label for="produto_id" class="form-label">Produto do prêmio</label>
+            <select id="produto_id" name="produto_id" class="form-select">
+                <option value="">Nenhum (prêmio fora do estoque)</option>
+                {% set atual = (v.get('produto_id') or (s.produto_id if s else ''))|string %}
+                {% for p, livre in produtos %}<option value="{{ p.id }}" {{ 'selected' if atual == p.id|string }}>{{ p.nome }} · {{ livre }} livre(s)</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-12">
+            <div class="row g-2 align-items-end">
+                <div class="col-4 col-sm-3 col-md-2">
+                    <label for="quantidade" class="form-label">Unidades</label>
+                    <input id="quantidade" name="quantidade" type="number" min="1" max="50" class="form-control"
+                           value="{{ v.get('quantidade') or (s.quantidade if s else 1) }}">
+                </div>
+                <div class="col">
+                    <div class="form-text mb-2">{% if reservado %}✅ <strong>{{ reservado.quantidade }} × {{ reservado.produto.nome }}</strong> já está reservado:
+                        saiu do estoque como brinde em {{ reservado.data.strftime('%d/%m %H:%M') }} e não aparece no PDV nem na loja.
+                        {% else %}Ao salvar, o prêmio <strong>sai do estoque</strong> (baixa como brinde) e some do PDV e da loja, sem risco de vender.
+                        Se excluir o sorteio antes de sortear, ele volta para o estoque.{% endif %} A foto do produto aparece na página do sorteio.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6">
+            <label for="inicio" class="form-label">Inscrições a partir de *</label>
+            <input id="inicio" name="inicio" type="datetime-local" class="form-control" required value="{{ dt('inicio', padrao) }}">
+        </div>
+        <div class="col-12 col-sm-6">
+            <label for="fim" class="form-label">Inscrições até *</label>
+            <input id="fim" name="fim" type="datetime-local" class="form-control" required value="{{ dt('fim', padrao) }}">
+            <div class="form-text">Nessa hora o formulário sai do ar sozinho.</div>
+        </div>
+        <div class="col-12">
+            <label for="descricao" class="form-label">Recado na página <span class="text-muted small">(opcional)</span></label>
+            <textarea id="descricao" name="descricao" class="form-control" rows="2" maxlength="300"
+                      placeholder="Sorteio ao vivo amanhã às 19h. Só para moradores do condomínio.">{{ v.get('descricao') or (s.descricao or '' if s else '') }}</textarea>
+        </div>
+        <div class="col-12 d-flex gap-2">
+            <button class="btn btn-success">Salvar sorteio</button>
+            <a href="{{ url_for('sorteios.ver', id=s.id) if s else url_for('sorteios.lista') }}" class="btn btn-secondary">Cancelar</a>
+        </div>
+    </form>
+{% endblock %}

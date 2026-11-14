@@ -106,6 +106,14 @@ def _cabecalhos(resp):
     return resp
 
 
+@bp.context_processor
+def _sorteio_aberto():
+    """Chamada para o sorteio aberto no topo da loja (e da loja fechada: o sorteio não depende do horário)."""
+    from app.sorteios import quando, sorteio_em_destaque
+    s = sorteio_em_destaque()
+    return {'sorteio_aberto': s, 'sorteio_fim': quando(s.fim) if s else None}
+
+
 # ---------------------------------------------------------------- público
 
 @bp.route('/')
@@ -263,7 +271,7 @@ def evento():
         return '', 204
     origem = re.sub(r'[^a-z0-9._-]', '', str(dados.get('o') or '').lower())[:40] or 'direto'
     pagina = str(dados.get('p') or '')
-    pagina = pagina if pagina in ('loja', 'pedido', 'fechada') else None
+    pagina = pagina if pagina in ('loja', 'pedido', 'fechada', 'sorteio') else None
     disp, momento = _dispositivo(ua), agora()
     eventos = dados.get('eventos') if isinstance(dados.get('eventos'), list) else []
     for ev in eventos[:10]:
@@ -413,6 +421,22 @@ def salvar_produto(id):
 def pedidos_loja_novos():
     """Para o selo no menu: pedidos da loja em aberto."""
     return Pedido.query.filter_by(origem='loja', status='aberto').count()
+
+
+@bp_admin.route('/alarme')
+def alarme():
+    """Consultado a cada 15 s pelas telas do PDV (static/js/alarme.js): chegou pedido da loja depois de `desde`?"""
+    desde = request.args.get('desde', type=int)
+    ultimo = db.session.query(db.func.max(Pedido.id)).filter(Pedido.origem == 'loja').scalar() or 0
+    novos = []
+    if desde is not None and ultimo > desde:
+        for p in (Pedido.query.filter(Pedido.origem == 'loja', Pedido.status == 'aberto', Pedido.id > desde)
+                  .order_by(Pedido.id).limit(5)):
+            novos.append({'id': p.id, 'cliente': p.cliente.nome, 'entrega': p.entrega or '', 'total': p.total,
+                          'itens': sum(i.quantidade for i in p.itens), 'hora': p.criado_em.strftime('%H:%M')})
+    resp = jsonify(ultimo=ultimo, abertos=pedidos_loja_novos(), novos=novos)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 # ---------------------------------------------------------------- relatório de acessos (com login)

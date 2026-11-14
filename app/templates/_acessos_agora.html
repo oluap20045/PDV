@@ -12,7 +12,7 @@
     <li title="Código do aparelho {{ p.visitante[:6] }}">
         <span aria-hidden="true">{{ '💻' if p.dispositivo == 'computador' else ('📱' if p.dispositivo == 'celular' else '📟') }}</span>
         <span>{{ p.dispositivo or 'aparelho' }}{% if p.origem and p.origem != 'direto' %} · veio do {{ p.origem }}{% endif %}</span>
-        <span class="text-muted">· {{ {'pedido': 'vendo o pedido', 'fechada': 'loja fechada'}.get(p.pagina, 'na loja') }}</span>
+        <span class="text-muted">· {{ {'pedido': 'vendo o pedido', 'fechada': 'loja fechada', 'sorteio': 'no sorteio'}.get(p.pagina, 'na loja') }}</span>
         {% if p.pedido %}<span class="ac-tag ac-tag-ok">✓ fez pedido</span>
         {% elif p.carrinho %}<span class="ac-tag">🛒 {{ p.carrinho }} no carrinho</span>{% endif %}
         <span class="text-muted ms-auto small">{{ 'agora' if p.min == 0 else 'há %d min'|format(p.min) }}</span>

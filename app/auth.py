@@ -45,7 +45,7 @@ def exigir_login():
 
     No endereço público da loja (LOJA_HOST, o que chega pela internet) só existe a loja: o resto dá 404,
     mesmo para quem tem login — o sistema interno continua só na rede de casa / ZeroTier."""
-    publico = request.blueprint == 'loja' or request.endpoint == 'static'
+    publico = request.blueprint in ('loja', 'sorteio_publico') or request.endpoint == 'static'
     if request.host.split(':')[0].lower() in current_app.config.get('LOJA_HOST', set()):
         if request.path in ('/', ''):
             return redirect('/loja/')

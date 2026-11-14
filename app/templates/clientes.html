@@ -27,11 +27,13 @@
     <h3>Clientes cadastrados <small class="text-muted fs-6">({{ clientes|length }})</small></h3>
     <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>WhatsApp</th><th>E-mail</th><th></th></tr></thead>
+        <thead><tr><th>Nome</th><th>Bloco / apto</th><th>CPF</th><th>Telefone</th><th>WhatsApp</th><th>E-mail</th><th></th></tr></thead>
         <tbody>
         {% for c in clientes %}
             <tr>
-                <td>{{ c.nome }}{% if c.padrao %} <span class="badge bg-success">padrão</span>{% endif %}</td>
+                <td>{{ c.nome }}{% if c.padrao %} <span class="badge bg-success">padrão</span>{% endif %}
+                    {% if c.origem == 'sorteio' %} <span class="badge bg-light text-dark border" title="Cadastrado pela inscrição num sorteio">🎁 sorteio</span>{% endif %}</td>
+                <td class="text-nowrap">{{ c.endereco or '—' }}</td>
                 <td class="text-nowrap">{{ c.cpf|cpf or '—' }}</td>
                 <td class="text-nowrap">{% if c.telefone %}<a href="tel:+55{{ c.telefone }}">{{ c.telefone|telefone }}</a>{% else %}—{% endif %}</td>
                 <td class="text-nowrap">{% if c.whatsapp %}<a href="https://wa.me/55{{ c.whatsapp }}" target="_blank" rel="noopener" class="link-success">{{ c.whatsapp|telefone }}</a>{% else %}—{% endif %}</td>
@@ -39,7 +41,7 @@
                 <td><a href="{{ url_for('main.editar_cliente', id=c.id) }}" class="btn btn-warning btn-sm">Editar</a></td>
             </tr>
         {% else %}
-            <tr><td colspan="6" class="text-muted">Nenhum cliente encontrado.</td></tr>
+            <tr><td colspan="7" class="text-muted">Nenhum cliente encontrado.</td></tr>
         {% endfor %}
         </tbody>
     </table>

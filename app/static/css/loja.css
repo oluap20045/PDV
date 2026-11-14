@@ -308,3 +308,43 @@ details.horario .horarios tr.hoje { background: rgba(200, 132, 63, .25); }
 .preco-promo s { font-size: .8rem; color: #8a7262; }
 .preco-promo strong { color: #b8322a; }
 .promo-oferta strong { white-space: nowrap; }
+
+/* sorteio: página pública de inscrição + chamada na loja */
+.sorteio { background: var(--branco); border-radius: var(--raio); box-shadow: var(--sombra); overflow: hidden; margin: 0 auto 16px; max-width: 520px; }
+.sorteio-topo { background: var(--cacau-800); color: var(--creme); padding: 22px 20px 20px; text-align: center; }
+.sorteio-selo {
+    display: inline-block; background: var(--caramelo); color: var(--cacau-900); border-radius: 999px;
+    padding: 4px 14px; font-size: .8rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+}
+.sorteio-topo h1 { margin: 10px 0 0; font-size: 1.6rem; line-height: 1.15; letter-spacing: -.01em; }
+.sorteio-prazo { margin: 8px 0 0; font-size: .9rem; color: #ead6bf; }
+.sorteio-prazo strong { color: var(--creme); }
+.sorteio-foto { background: var(--branco); display: grid; place-items: center; padding: 12px; }
+.sorteio-foto img { max-width: 100%; max-height: 260px; object-fit: contain; display: block; }
+.sorteio-desc { margin: 0; padding: 12px 20px 0; color: var(--texto-2); text-align: center; white-space: pre-line; }
+.sorteio-form { padding: 16px 20px 20px; }
+.sorteio-apto { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.sorteio-letra { font-size: .78rem; color: var(--texto-2); text-align: center; }
+.sorteio-ok, .sorteio-resultado, .sorteio-aviso { margin: 16px 20px 20px; border-radius: 12px; padding: 16px; text-align: center; }
+.sorteio-ok { background: #e7f4ec; color: #1d5a33; }
+.sorteio-ok > span, .sorteio-resultado > span { display: block; font-size: 2.2rem; line-height: 1; margin-bottom: 6px; }
+.sorteio-ok strong { display: block; font-size: 1.1rem; }
+.sorteio-ok p, .sorteio-resultado p { margin: 6px 0 0; font-size: .9rem; }
+.sorteio .botao-zap { margin: 0 20px 20px; }
+.sorteio-resultado { background: #fff3dc; color: var(--cacau-800); }
+.sorteio-resultado small { display: block; text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; color: var(--cacau-500); }
+.sorteio-resultado strong { display: block; font-size: 1.5rem; margin-top: 2px; }
+.sorteio-aviso { background: var(--creme-2); color: var(--cacau-700); }
+.chamada-sorteio {
+    display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--cacau-900);
+    background: linear-gradient(135deg, #fff3dc, #f6dfbf); border: 1px solid #ecd2ae; border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 14px;
+}
+.chamada-sorteio > span { font-size: 1.8rem; line-height: 1; }
+.chamada-sorteio div { flex: 1; min-width: 0; }
+.chamada-sorteio strong { display: block; }
+.chamada-sorteio small { color: var(--texto-2); }
+.chamada-sorteio em { font-style: normal; font-weight: 700; color: var(--cacau-800); white-space: nowrap; }
+.sorteio-erro { margin: 16px 20px 0; }
+.sorteio-apto label { min-width: 0; }
+.sorteio-apto input { width: 100%; min-width: 0; }
