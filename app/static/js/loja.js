@@ -201,7 +201,11 @@
     // dados do cliente lembrados neste aparelho
     const form = $('#form-pedido');
     const cliente = ler('loja-cliente', {});
-    ['nome', 'whatsapp', 'entrega'].forEach(c => { if (cliente[c]) form.elements[c].value = cliente[c]; });
+    ['nome', 'whatsapp', 'bloco', 'apartamento'].forEach(c => { if (cliente[c]) form.elements[c].value = cliente[c]; });
+    if (cliente.entrega && !cliente.apartamento) {          // guardado antes da separação: "Bloco 3, apto 42"
+        const n = cliente.entrega.match(/[0-9]+[a-z]?/gi) || [];
+        if (n.length === 2) { form.elements.bloco.value = n[0]; form.elements.apartamento.value = n[1]; }
+    }
     if (cliente.pagamento) {
         const r = form.querySelector(`input[name="pagamento"][value="${CSS.escape(cliente.pagamento)}"]`);
         if (r) r.checked = true;
@@ -213,15 +217,18 @@
         ev.preventDefault();
         const f = form.elements;
         const dados = {
-            nome: f.nome.value.trim(), whatsapp: f.whatsapp.value.trim(), entrega: f.entrega.value.trim(),
+            nome: f.nome.value.trim(), whatsapp: f.whatsapp.value.trim(),
+            bloco: f.bloco.value.trim(), apartamento: f.apartamento.value.trim(),
             pagamento: (form.querySelector('input[name="pagamento"]:checked') || {}).value || '',
             observacao: f.observacao.value.trim(), site: f.site.value,
             itens: Object.entries(carrinho).map(([id, qtd]) => ({id: +id, qtd})),
         };
         if (dados.nome.length < 2) return erro('Informe seu nome.');
         if (!/^\d{10,11}$/.test(dados.whatsapp.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''))) return erro('Informe o WhatsApp com DDD.');
-        if (!dados.entrega) return erro('Informe o bloco e o apartamento.');
-        guardar('loja-cliente', {nome: dados.nome, whatsapp: dados.whatsapp, entrega: dados.entrega, pagamento: dados.pagamento});
+        if (!dados.bloco) return erro('Informe o bloco.');
+        if (!dados.apartamento) return erro('Informe o apartamento.');
+        guardar('loja-cliente', {nome: dados.nome, whatsapp: dados.whatsapp, bloco: dados.bloco, apartamento: dados.apartamento,
+                                 pagamento: dados.pagamento});
 
         const botao = $('#enviar');
         botao.disabled = true;

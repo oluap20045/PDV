@@ -348,3 +348,6 @@ details.horario .horarios tr.hoje { background: rgba(200, 132, 63, .25); }
 .sorteio-erro { margin: 16px 20px 0; }
 .sorteio-apto label { min-width: 0; }
 .sorteio-apto input { width: 100%; min-width: 0; }
+.form-apto { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.form-apto label { min-width: 0; }
+.form-apto input { width: 100%; min-width: 0; }

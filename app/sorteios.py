@@ -69,21 +69,23 @@ def limpar_whatsapp(valor):
     return d
 
 
-def achar_ou_criar_cliente(nome, whatsapp, bloco, apto):
+def achar_ou_criar_cliente(nome, whatsapp, bloco, apto, origem='sorteio'):
     """Mesmo nome (sem acento/maiúscula) no mesmo bloco + apartamento = mesmo cliente.
-    Senão, alguém que já pediu na loja com esse WhatsApp e esse nome, mas ainda sem apartamento, ganha o endereço.
-    Senão, cliente novo (origem 'sorteio')."""
+    Senão, quem já tem esse WhatsApp e o mesmo primeiro nome, mas ainda sem apartamento, ganha o endereço.
+    Senão, cliente novo (origem 'sorteio' ou 'loja')."""
     chave = chave_nome(nome)
     for c in Cliente.query.filter_by(bloco=bloco, apartamento=apto).order_by(Cliente.id).all():
         if chave_nome(c.nome) == chave:
             if whatsapp and c.whatsapp != whatsapp:
                 c.whatsapp = whatsapp            # o número mais recente é o que a pessoa usa
             return c
+    primeiro = chave.split(' ')[0]
     for c in Cliente.query.filter_by(whatsapp=whatsapp).order_by(Cliente.id).all():
-        if not c.apartamento and chave_nome(c.nome) == chave:
+        # cadastrado no balcão como "Ana" e agora "Ana Souza": mesmo WhatsApp + mesmo primeiro nome
+        if not c.apartamento and chave_nome(c.nome).split(' ')[0] == primeiro:
             c.bloco, c.apartamento = bloco, apto
             return c
-    c = Cliente(nome=nome, whatsapp=whatsapp, bloco=bloco, apartamento=apto, origem='sorteio', criado_em=datetime.now())
+    c = Cliente(nome=nome, whatsapp=whatsapp, bloco=bloco, apartamento=apto, origem=origem, criado_em=datetime.now())
     db.session.add(c)
     db.session.flush()
     return c

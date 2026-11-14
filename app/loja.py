@@ -174,7 +174,11 @@ def fazer_pedido():
     whats = re.sub(r'\D', '', str(dados.get('whatsapp') or ''))
     if whats.startswith('55') and len(whats) in (12, 13):
         whats = whats[2:]
-    entrega = re.sub(r'\s+', ' ', str(dados.get('entrega') or '')).strip()[:120]
+    from app.sorteios import achar_ou_criar_cliente, chave_nome, limpar_apto, limpar_bloco
+    bloco, apto = limpar_bloco(dados.get('bloco')), limpar_apto(dados.get('apartamento'))
+    # página antiga ainda aberta no celular (antes de separar bloco e apto) manda o texto livre
+    entrega = f'Bloco {bloco}, apto {apto}' if bloco and apto else \
+        re.sub(r'\s+', ' ', str(dados.get('entrega') or '')).strip()[:120]
     pagamento = str(dados.get('pagamento') or '')
     obs = re.sub(r'\s+', ' ', str(dados.get('observacao') or '')).strip()[:255]
     if len(nome) < 2:
@@ -212,16 +216,20 @@ def fazer_pedido():
         nomes = ', '.join(f"{f['nome']} (tem {f['disponivel']})" for f in faltou)
         return jsonify(erro=f'Alguns itens acabaram de ser vendidos: {nomes}. Ajustei seu carrinho.', faltou=faltou), 409
 
-    cliente = Cliente.query.filter_by(whatsapp=whats).order_by(Cliente.id).first()
-    if cliente is None:
-        cliente = Cliente(nome=nome, whatsapp=whats, criado_em=datetime.now())
-        db.session.add(cliente)
-        db.session.flush()
+    if bloco and apto:
+        # mesma regra do sorteio: nome + bloco + apto (ou o WhatsApp de quem pediu antes sem apto) = mesmo cliente
+        cliente = achar_ou_criar_cliente(nome, whats, bloco, apto, origem='loja')
+    else:
+        cliente = Cliente.query.filter_by(whatsapp=whats).order_by(Cliente.id).first()
+        if cliente is None:
+            cliente = Cliente(nome=nome, whatsapp=whats, origem='loja', criado_em=datetime.now())
+            db.session.add(cliente)
+            db.session.flush()
 
     pedido = Pedido(cliente_id=cliente.id, criado_em=agora(), origem='loja', codigo=secrets.token_urlsafe(9),
                     entrega=entrega, pagamento=pagamento,
                     # cliente já cadastrado com outro nome (ex.: alguém da mesma casa): guarda o nome digitado
-                    observacao=' · '.join(filter(None, [f'Nome no pedido: {nome}' if cliente.nome != nome else '',
+                    observacao=' · '.join(filter(None, [f'Nome no pedido: {nome}' if chave_nome(cliente.nome) != chave_nome(nome) else '',
                                                         obs]))[:255] or None)
     # combos ("4 por 12") entram sozinhos; cada unidade continua sendo do seu produto
     grupos, resto = aplicar_combos([(pid, q, round(produtos[pid].preco, 2)) for pid, q in pedidos_itens.items()],
