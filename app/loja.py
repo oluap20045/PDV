@@ -226,6 +226,7 @@ def fazer_pedido():
 
 _eventos_ip = defaultdict(deque)
 LIMITE_EVENTOS = 300                     # por IP a cada 10 min: sobra para uma pessoa, segura um robô
+TIPOS_ACEITOS = set(TIPOS_EVENTO) | {'presenca'}   # presenca = "estou com a loja aberta" (1x/min, para o "Na loja agora")
 ROBOS = re.compile(r'bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|headless|lighthouse|curl|wget|python',
                    re.I)
 
@@ -259,7 +260,7 @@ def evento():
     disp, momento = _dispositivo(ua), agora()
     eventos = dados.get('eventos') if isinstance(dados.get('eventos'), list) else []
     for ev in eventos[:10]:
-        if not isinstance(ev, dict) or ev.get('t') not in TIPOS_EVENTO:
+        if not isinstance(ev, dict) or ev.get('t') not in TIPOS_ACEITOS:
             continue
         try:
             pid = int(ev['id']) if ev.get('id') is not None else None
@@ -411,6 +412,7 @@ def pedidos_loja_novos():
 
 PERIODOS = {'hoje': ('Hoje', 1), '7': ('7 dias', 7), '30': ('30 dias', 30), '90': ('90 dias', 90)}
 GUARDAR_DIAS = 400
+AGORA_MIN = 3          # "na loja agora" = deu sinal nos últimos 3 min (o site manda presença a cada 1 min)
 
 
 def _contagem(pares):
@@ -420,6 +422,35 @@ def _contagem(pares):
         vis[chave].add(v)
         cliques[chave] += 1
     return sorted(((k, len(vis[k]), cliques[k]) for k in vis), key=lambda x: (-x[1], -x[2], str(x[0])))
+
+
+def _na_loja_agora():
+    """Quem está com a loja aberta agora: um item por aparelho, o mais recente primeiro."""
+    momento = agora()
+    evs = (LojaEvento.query.filter(LojaEvento.criado_em >= momento - timedelta(minutes=AGORA_MIN))
+           .order_by(LojaEvento.criado_em).all())
+    pessoas = {}
+    for e in evs:
+        p = pessoas.setdefault(e.visitante, {'visitante': e.visitante, 'pagina': None})
+        p.update(ultimo=e.criado_em, pagina=e.pagina or p['pagina'], dispositivo=e.dispositivo, origem=e.origem)
+    for p in pessoas.values():
+        p['min'] = max(int((momento - p['ultimo']).total_seconds() // 60), 0)
+        p['carrinho'] = p['pedido'] = 0
+    if pessoas:   # o que fizeram nesta visita (última meia hora)
+        for v, tipo, n in (db.session.query(LojaEvento.visitante, LojaEvento.tipo, db.func.count())
+                           .filter(LojaEvento.criado_em >= momento - timedelta(minutes=30),
+                                   LojaEvento.tipo.in_(('adicionar', 'pedido')), LojaEvento.visitante.in_(list(pessoas)))
+                           .group_by(LojaEvento.visitante, LojaEvento.tipo)):
+            pessoas[v]['carrinho' if tipo == 'adicionar' else 'pedido'] = n
+    return sorted(pessoas.values(), key=lambda p: p['ultimo'], reverse=True)
+
+
+@bp_admin.route('/acessos/agora')
+def acessos_agora():
+    """Só o quadro "Na loja agora" (a tela de acessos busca a cada 15 s)."""
+    resp = Response(render_template('_acessos_agora.html', na_loja=_na_loja_agora(), AGORA_MIN=AGORA_MIN))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 @bp_admin.route('/acessos')
@@ -434,9 +465,11 @@ def acessos():
 
     # limpeza: estatística antiga não serve para nada e só ocupa o banco
     LojaEvento.query.filter(LojaEvento.criado_em < hoje - timedelta(days=GUARDAR_DIAS)).delete(synchronize_session=False)
+    LojaEvento.query.filter(LojaEvento.tipo == 'presenca',   # presença só serve para o "agora"
+                            LojaEvento.criado_em < agora_ - timedelta(days=1)).delete(synchronize_session=False)
     db.session.commit()
 
-    eventos = (LojaEvento.query.filter(LojaEvento.criado_em >= inicio)
+    eventos = (LojaEvento.query.filter(LojaEvento.criado_em >= inicio, LojaEvento.tipo != 'presenca')
                .order_by(LojaEvento.criado_em).limit(300_000).all())
     visitas = [e for e in eventos if e.tipo == 'visita']
     quem = lambda tipo: {e.visitante for e in eventos if e.tipo == tipo}
@@ -494,4 +527,4 @@ def acessos():
                           for e in eventos if e.tipo not in ('visita', 'adicionar', 'categoria')),
         origens=_contagem((o, v) for v, o in origem_de.items()),
         aparelhos=_contagem((a, v) for v, a in aparelho_de.items()),
-        recentes=list(reversed(eventos[-40:])), TIPOS=TIPOS_EVENTO)
+        recentes=list(reversed(eventos[-40:])), TIPOS=TIPOS_EVENTO, na_loja=_na_loja_agora(), AGORA_MIN=AGORA_MIN, momento=agora_)

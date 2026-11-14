@@ -32,6 +32,24 @@
     .ac-funil li .trilho { height: 14px; }
     .ac-vazio { color: #6c7a63; font-size: .9rem; margin: 0; }
     .ac-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+    /* ao vivo */
+    .ac-agora { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 14px -10px rgba(38, 59, 29, .5);
+                border-left: 4px solid var(--folha-600); }
+    .ac-agora-topo { display: flex; align-items: center; gap: 12px; }
+    .ac-agora-num { font-size: 1.05rem; color: var(--folha-800); }
+    .ac-agora-num strong { font-size: 1.7rem; line-height: 1; }
+    .ac-agora .det { font-size: .78rem; color: #6c7a63; }
+    .ac-ponto { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #b9c2b2; }
+    .ac-ponto.ligado { background: #2f9e44; box-shadow: 0 0 0 0 rgba(47, 158, 68, .6); animation: ac-pulso 2s infinite; }
+    @keyframes ac-pulso { 70% { box-shadow: 0 0 0 9px rgba(47, 158, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(47, 158, 68, 0); } }
+    @media (prefers-reduced-motion: reduce) { .ac-ponto.ligado { animation: none; } }
+    .ac-agora-lista { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: .86rem; }
+    .ac-agora-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding-top: 6px; border-top: 1px solid #edf2e8; }
+    .ac-tag { font-size: .75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #fff3cd; color: #664d03; }
+    .ac-tag-ok { background: #d1e7dd; color: #0f5132; }
+    .ac-status { font-size: .78rem; color: #6c7a63; }
+    .ac-status.erro { color: #b02a37; }
 </style>
 {% endblock %}
 {% block content %}
@@ -71,7 +89,10 @@
 {% endmacro %}
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h2 class="mb-0">Acessos da loja</h2>
+        <div>
+            <h2 class="mb-0">Acessos da loja</h2>
+            <div class="ac-status" id="ac-status">Atualiza sozinho · {{ momento.strftime('%H:%M:%S') }}</div>
+        </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
             <div class="btn-group" role="group" aria-label="Período">
                 {% for k, (rot, _) in PERIODOS.items() %}
@@ -83,6 +104,9 @@
         </div>
     </div>
 
+    <div class="ac-agora mb-3" id="ac-agora">{% include '_acessos_agora.html' %}</div>
+
+    <div id="ac-painel">
     <div class="ac-cards mb-3">
         <div class="ac-card"><div class="rotulo">Pessoas que acessaram</div><div class="valor">{{ cards.visitantes }}</div>
             <div class="det">{{ cards.novos }} nova{{ 's' if cards.novos != 1 }} · {{ cards.voltaram }} já tinha{{ 'm' if cards.voltaram != 1 }} vindo antes</div></div>
@@ -163,6 +187,7 @@
         </div>
         {% else %}<p class="ac-vazio">Nada neste período.</p>{% endif %}
     </div>
+    </div>{# /ac-painel #}
 
     <p class="small text-muted mb-0">
         Sem cookies e sem dado pessoal: cada aparelho ganha um código aleatório (não guarda IP, nome nem telefone).
@@ -170,4 +195,52 @@
         a loja com <code>?nao_contar=1</code> no fim do endereço (ex.: <code>chocolatesdopaulinho.com.br/loja/?nao_contar=1</code>);
         <code>?contar=1</code> volta a contar. Os dados ficam guardados por 400 dias.
     </p>
+{% endblock %}
+{% block scripts %}
+<script>
+/* Atualização automática: o "Na loja agora" a cada 15 s e o resto da tela a cada 1 min.
+   Para enquanto a aba está escondida (não gasta o servidor) e atualiza na hora quando você volta. */
+(function () {
+    const status = document.getElementById('ac-status');
+    const urlAgora = {{ url_for('loja_admin.acessos_agora')|tojson }};
+    let ocupado = false;
+
+    function hora() { return new Date().toLocaleTimeString('pt-BR'); }
+    function ok() { status.textContent = 'Atualiza sozinho · ' + hora(); status.classList.remove('erro'); }
+    function falhou() { status.textContent = 'Sem conexão: tentando de novo…'; status.classList.add('erro'); }
+
+    async function buscar(url) {
+        const r = await fetch(url, {cache: 'no-store', credentials: 'same-origin'});
+        if (!r.ok || r.redirected) throw new Error('resposta ' + r.status);   // redirected = sessão expirou (tela de login)
+        return r.text();
+    }
+
+    async function agora() {
+        if (document.hidden) return;
+        try { document.getElementById('ac-agora').innerHTML = await buscar(urlAgora); ok(); } catch (e) { falhou(); }
+    }
+
+    async function tudo() {
+        if (document.hidden || ocupado) return;
+        ocupado = true;
+        try {
+            const doc = new DOMParser().parseFromString(await buscar(location.href), 'text/html');
+            const novo = doc.getElementById('ac-painel'), novoAgora = doc.getElementById('ac-agora');
+            const atual = document.getElementById('ac-painel');
+            if (novo && atual) {
+                // mantém abertos os "Ver em tabela" que você abriu
+                const abertos = [...atual.querySelectorAll('details')].map(d => d.open);
+                novo.querySelectorAll('details').forEach((d, i) => { if (abertos[i]) d.open = true; });
+                atual.replaceWith(novo);
+            }
+            if (novoAgora) document.getElementById('ac-agora').innerHTML = novoAgora.innerHTML;
+            ok();
+        } catch (e) { falhou(); } finally { ocupado = false; }
+    }
+
+    setInterval(agora, 15000);
+    setInterval(tudo, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tudo(); });
+})();
+</script>
 {% endblock %}

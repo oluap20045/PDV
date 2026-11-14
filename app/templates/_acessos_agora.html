@@ -1,0 +1,22 @@
+{% set n = na_loja|length %}
+<div class="ac-agora-topo">
+    <span class="ac-ponto {{ 'ligado' if n }}" aria-hidden="true"></span>
+    <div>
+        <div class="ac-agora-num" aria-live="polite"><strong>{{ n }}</strong> {{ 'pessoa' if n == 1 else 'pessoas' }} na loja agora</div>
+        <div class="det">com o site aberto nos últimos {{ AGORA_MIN }} minutos</div>
+    </div>
+</div>
+{% if na_loja %}
+<ul class="ac-agora-lista">
+    {% for p in na_loja[:12] %}
+    <li title="Código do aparelho {{ p.visitante[:6] }}">
+        <span aria-hidden="true">{{ '💻' if p.dispositivo == 'computador' else ('📱' if p.dispositivo == 'celular' else '📟') }}</span>
+        <span>{{ p.dispositivo or 'aparelho' }}{% if p.origem and p.origem != 'direto' %} · veio do {{ p.origem }}{% endif %}</span>
+        <span class="text-muted">· {{ {'pedido': 'vendo o pedido', 'fechada': 'loja fechada'}.get(p.pagina, 'na loja') }}</span>
+        {% if p.pedido %}<span class="ac-tag ac-tag-ok">✓ fez pedido</span>
+        {% elif p.carrinho %}<span class="ac-tag">🛒 {{ p.carrinho }} no carrinho</span>{% endif %}
+        <span class="text-muted ms-auto small">{{ 'agora' if p.min == 0 else 'há %d min'|format(p.min) }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}

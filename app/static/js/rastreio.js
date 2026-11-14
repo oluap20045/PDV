@@ -53,6 +53,16 @@
 
     enviar('visita', pagina);
 
+    // presença: "estou com a loja aberta", 1x por minuto só enquanto a aba está na tela (contador "Na loja agora")
+    let ultimoSinal = Date.now();
+    function presenca() {
+        if (document.hidden || Date.now() - ultimoSinal < 30000) return;
+        ultimoSinal = Date.now();
+        enviar('presenca', null);
+    }
+    setInterval(presenca, 60000);
+    document.addEventListener('visibilitychange', presenca);
+
     // links e botões marcados com data-rastro="tipo|rótulo" (ex.: data-rastro="whatsapp|Avisar no WhatsApp")
     document.addEventListener('click', ev => {
         const el = ev.target.closest('[data-rastro]');
