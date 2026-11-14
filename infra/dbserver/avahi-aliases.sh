@@ -15,8 +15,11 @@ cleanup() { [ -n "$pids" ] && kill $pids 2>/dev/null; exit 0; }
 trap cleanup TERM INT EXIT
 
 while true; do
-  ip4=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
-  ip6=$(ip -6 -o addr show scope global 2>/dev/null | grep -v -e temporary -e deprecated | awk '{print $4}' | cut -d/ -f1 | head -1)
+  # interface da rota padrão de menor métrica (cabo eth0 antes do Wi-Fi); sem rota, qualquer uma
+  dev=$(ip route show default 2>/dev/null | awk '$1=="default" {m=0; for(i=1;i<NF;i++) if($i=="metric") m=$(i+1); for(i=1;i<NF;i++) if($i=="dev") print m, $(i+1)}' \
+        | sort -n | head -1 | cut -d' ' -f2)
+  ip4=$(ip -4 -o addr show ${dev:+dev $dev} scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)
+  ip6=$(ip -6 -o addr show ${dev:+dev $dev} scope global 2>/dev/null | grep -v -e temporary -e deprecated | awk '{print $4}' | cut -d/ -f1 | head -1)
   atual="$ip4 $ip6"
   if [ -n "$ip4" ] && [ "$atual" != "$last" ]; then
     [ -n "$pids" ] && kill $pids 2>/dev/null
