@@ -1,6 +1,7 @@
 # Local: app/models.py
 
 import hashlib
+import json
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -236,6 +237,9 @@ class VendaPagamento(db.Model):
         return self.forma
 
 
+SEMANA_PADRAO = json.dumps([['18:00', '23:00']] * 7)
+
+
 class Empresa(db.Model):
     """Dados do cabeçalho do comprovante (uma linha só)."""
     id = db.Column(db.Integer, primary_key=True)
@@ -251,38 +255,109 @@ class Empresa(db.Model):
     # loja online (/loja)
     # auto = abre/fecha sozinha no horário; aberta / fechada = manual, até mudar de novo
     loja_modo = db.Column(db.String(10), nullable=False, default='fechada')
-    loja_abre = db.Column(db.Time, nullable=False, default=time(18, 0))
-    loja_fecha = db.Column(db.Time, nullable=False, default=time(23, 0))    # antes de abrir = vira a meia-noite
-    loja_dias = db.Column(db.String(7), nullable=False, default='0123456')  # 0=segunda … 6=domingo
+    # horário de cada dia da semana (0=segunda … 6=domingo): JSON [["18:00","23:00"], null (fechado), ...]
+    # fecha antes de abrir = vira a meia-noite (ex.: 20:00 às 02:00)
+    loja_semana = db.Column(db.String(200), nullable=False, default=SEMANA_PADRAO)
     loja_aviso = db.Column(db.String(300), nullable=True)      # recado no topo da loja ("entregas sáb. à tarde")
-    loja_horario = db.Column(db.String(60), nullable=True, default='18:00 às 23:00')   # horário das entregas
     loja_whatsapp = db.Column(db.String(13), nullable=True)    # só dígitos com DDD; recebe o aviso de pedido novo
     pix_chave = db.Column(db.String(77), nullable=True)
     pix_nome = db.Column(db.String(25), nullable=True)         # nome do recebedor (aparece no app do banco)
     pix_cidade = db.Column(db.String(15), nullable=True)
 
+    # ---------------------------------------------------------------- horário da loja online
+
+    @property
+    def loja_grade(self):
+        """[(abre, fecha) | None] x 7, segunda a domingo."""
+        try:
+            dados = json.loads(self.loja_semana or '[]')
+        except ValueError:
+            dados = []
+        grade = []
+        for i in range(7):
+            j = dados[i] if i < len(dados) else None
+            try:
+                grade.append((time.fromisoformat(j[0]), time.fromisoformat(j[1])) if j else None)
+            except (TypeError, ValueError, IndexError):
+                grade.append(None)
+        return grade
+
+    @loja_grade.setter
+    def loja_grade(self, grade):
+        self.loja_semana = json.dumps([[a.strftime('%H:%M'), f.strftime('%H:%M')] if (a and f) else None
+                                       for a, f in ((j or (None, None)) for j in grade)])
+
+    @staticmethod
+    def _agora():
+        return datetime.now(ZoneInfo('America/Sao_Paulo')).replace(tzinfo=None)
+
+    def janela_em(self, momento):
+        """(início, fim) em datetime do horário que cobre `momento` (inclui o de ontem que virou a meia-noite)."""
+        grade = self.loja_grade
+        for dias_atras in (0, 1):
+            dia = momento.date() - timedelta(days=dias_atras)
+            j = grade[dia.weekday()]
+            if not j:
+                continue
+            inicio = datetime.combine(dia, j[0])
+            fim = datetime.combine(dia + timedelta(days=1 if j[1] <= j[0] else 0), j[1])
+            if inicio <= momento < fim:
+                return inicio, fim
+        return None
+
+    def janela_do_dia(self, dia):
+        j = self.loja_grade[dia.weekday()]
+        if not j:
+            return None
+        return datetime.combine(dia, j[0]), datetime.combine(dia + timedelta(days=1 if j[1] <= j[0] else 0), j[1])
+
     def loja_situacao(self, agora=None):
         """(aberta_agora, próxima_abertura | None) conforme o modo e o horário."""
-        agora = agora or datetime.now(ZoneInfo('America/Sao_Paulo')).replace(tzinfo=None)
+        agora = agora or self._agora()
         if self.loja_modo == 'aberta':
             return True, None
         if self.loja_modo != 'auto':
             return False, None
-        dias = {int(d) for d in (self.loja_dias or '') if d.isdigit()}
-        t, hoje, ontem = agora.time(), agora.weekday(), (agora.weekday() - 1) % 7
-        abre, fecha = self.loja_abre, self.loja_fecha
-        if abre < fecha:
-            aberta = hoje in dias and abre <= t < fecha
-        else:                                  # ex.: 20:00 às 02:00
-            aberta = (hoje in dias and t >= abre) or (ontem in dias and t < fecha)
-        if aberta:
+        if self.janela_em(agora):
             return True, None
         for i in range(8):
-            dia = (agora + timedelta(days=i)).date()
-            inicio = datetime.combine(dia, abre)
-            if dia.weekday() in dias and inicio > agora:
-                return False, inicio
+            j = self.janela_do_dia(agora.date() + timedelta(days=i))
+            if j and j[0] > agora:
+                return False, j[0]
         return False, None
+
+    @staticmethod
+    def _hora(t):
+        return t.strftime('%H:%M')
+
+    def horario_texto(self, momento=None):
+        """'18:00 às 23:00' do horário em que `momento` cai (ou o do dia), para "Entregas das ..."."""
+        momento = momento or self._agora()
+        j = self.janela_em(momento) or self.janela_do_dia(momento.date())
+        return f'{self._hora(j[0])} às {self._hora(j[1])}' if j else None
+
+    def horario_agora(self, agora=None):
+        """Horário de entrega que ainda vale hoje (o de agora ou o que vai começar); None se o de hoje já acabou."""
+        agora = agora or self._agora()
+        j = self.janela_em(agora) or self.janela_do_dia(agora.date())
+        return f'{self._hora(j[0])} às {self._hora(j[1])}' if j and j[1] > agora else None
+
+    def horario_semana(self, hoje=None):
+        """[{'dias': 'Seg a Qui', 'horario': '18:00 às 23:00' | None, 'hoje': bool}] juntando dias seguidos iguais."""
+        hoje = (hoje or self._agora()).weekday()
+        nomes = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+        grade, linhas = self.loja_grade, []
+        for i, j in enumerate(grade):
+            texto = f'{self._hora(j[0])} às {self._hora(j[1])}' if j else None
+            if linhas and linhas[-1]['horario'] == texto:
+                linhas[-1]['fim'] = i
+                linhas[-1]['hoje'] = linhas[-1]['hoje'] or i == hoje
+            else:
+                linhas.append({'inicio': i, 'fim': i, 'horario': texto, 'hoje': i == hoje})
+        for l in linhas:
+            a, b = l.pop('inicio'), l.pop('fim')
+            l['dias'] = nomes[a] if a == b else (f'{nomes[a]} e {nomes[b]}' if b == a + 1 else f'{nomes[a]} a {nomes[b]}')
+        return linhas
 
     @property
     def loja_aberta(self):

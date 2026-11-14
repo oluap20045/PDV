@@ -11,8 +11,9 @@
             <span class="status status-{{ pedido.status }}">{{ STATUS[pedido.status] }}</span>
         </div>
         <p class="sub">{{ pedido.criado_em.strftime('%d/%m às %H:%M') }} · Entrega: {{ pedido.entrega }} · {{ pedido.pagamento }}</p>
-        {% if empresa.loja_horario and pedido.status == 'aberto' %}
-        <div class="horario horario-pedido"><span aria-hidden="true">🛵</span><div><strong>Entrega das {{ empresa.loja_horario }}</strong>
+        {% set h_pedido = empresa.horario_texto(pedido.criado_em) %}
+        {% if h_pedido and pedido.status == 'aberto' %}
+        <div class="horario horario-pedido"><span aria-hidden="true">🛵</span><div><strong>Entrega das {{ h_pedido }}</strong>
             <small>Levamos até {{ pedido.entrega }}.</small></div></div>
         {% endif %}
 

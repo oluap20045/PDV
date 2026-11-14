@@ -143,6 +143,9 @@ reserva o estoque e é entregue/cobrado pelo PDV como qualquer pedido.
 
 - Configuração em **Loja online** (menu): abrir/fechar, recado, WhatsApp que recebe os pedidos, chave Pix (QR Code
   "copia e cola" com o valor do pedido) e fotos/descrição/visibilidade de cada produto.
+- Horário: um por dia da semana (ou fechado), em **Loja online**; é também o horário das entregas. No automático a
+  loja abre e fecha sozinha; a vitrine mostra "Entregas hoje das …" e a tabela da semana, e a página de loja fechada
+  mostra quando abre e a tabela. Fecha antes de abrir = vira a meia-noite.
 - Aparece na vitrine: produto marcado "Mostrar na loja", com preço e com estoque livre (estoque − reservas).
 - Publicação: Cloudflare Tunnel (`cloudflared`) → Caddy → app. Defina `LOJA_HOST` no `.env` com o nome público:
   nesse endereço só `/loja` responde; login e sistema interno dão 404 (continuam só na rede local / ZeroTier).

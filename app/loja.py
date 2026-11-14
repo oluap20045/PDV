@@ -82,6 +82,7 @@ def _whatsapp_loja(emp):
 
 
 DIAS_SEMANA = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+DIAS_NOMES = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
 
 
 def _quando(momento):
@@ -293,8 +294,9 @@ def ver_pedido(codigo):
                 linhas.append(f'• {bloco[1].quantidade}x {bloco[1].produto.nome}')
         linhas += [f'Total: R$ {pedido.total:.2f}'.replace('.', ','), f'Entrega: {pedido.entrega}',
                    f'Pagamento: {pedido.pagamento}']
-        if emp.loja_horario:
-            linhas.append(f'Entregas: das {emp.loja_horario}')
+        horario = emp.horario_texto(pedido.criado_em)
+        if horario:
+            linhas.append(f'Entregas: das {horario}')
         linhas += ['', 'https://' + request.host + url_for('loja.ver_pedido', codigo=codigo)]
         link_zap = f'https://wa.me/{zap}?text={quote(chr(10).join(linhas))}'
     return render_template('loja/pedido.html', pedido=pedido, empresa=emp, pix_txt=pix_txt, qr=qr, blocos=agrupar(pedido.itens),
@@ -310,22 +312,29 @@ def config():
         modo = request.form.get('loja_modo')
         if modo in ('auto', 'aberta', 'fechada'):
             emp.loja_modo = modo
-        try:
-            abre = datetime.strptime(request.form.get('loja_abre') or '', '%H:%M').time()
-            fecha = datetime.strptime(request.form.get('loja_fecha') or '', '%H:%M').time()
-        except ValueError:
-            flash('Horário de abrir/fechar inválido.', 'danger')
+        grade = []
+        for i, nome in enumerate(DIAS_NOMES):
+            if request.form.get(f'dia{i}_aberto') != '1':
+                grade.append(None)
+                continue
+            try:
+                abre = datetime.strptime(request.form.get(f'dia{i}_abre') or '', '%H:%M').time()
+                fecha = datetime.strptime(request.form.get(f'dia{i}_fecha') or '', '%H:%M').time()
+            except ValueError:
+                db.session.rollback()
+                flash(f'Horário de {nome} inválido.', 'danger')
+                return redirect(url_for('loja_admin.config'))
+            if abre == fecha:
+                db.session.rollback()
+                flash(f'{nome.capitalize()}: o horário de abrir e de fechar não podem ser iguais.', 'danger')
+                return redirect(url_for('loja_admin.config'))
+            grade.append((abre, fecha))
+        if emp.loja_modo == 'auto' and not any(grade):
+            db.session.rollback()
+            flash('No automático, deixe pelo menos um dia aberto.', 'danger')
             return redirect(url_for('loja_admin.config'))
-        if abre == fecha:
-            flash('O horário de abrir e de fechar não podem ser iguais.', 'danger')
-            return redirect(url_for('loja_admin.config'))
-        dias = ''.join(sorted({d for d in request.form.getlist('loja_dias') if d in '0123456' and len(d) == 1}))
-        if emp.loja_modo == 'auto' and not dias:
-            flash('No automático, marque pelo menos um dia da semana.', 'danger')
-            return redirect(url_for('loja_admin.config'))
-        emp.loja_abre, emp.loja_fecha, emp.loja_dias = abre, fecha, dias or emp.loja_dias
+        emp.loja_grade = grade
         emp.loja_aviso = (request.form.get('loja_aviso') or '').strip()[:300] or None
-        emp.loja_horario = (request.form.get('loja_horario') or '').strip()[:60] or None
         zap = re.sub(r'\D', '', request.form.get('loja_whatsapp') or '')
         if zap.startswith('55') and len(zap) in (12, 13):
             zap = zap[2:]
@@ -359,7 +368,7 @@ def config():
         exemplo_pix = pix.payload(emp.pix_chave, emp.pix_nome, emp.pix_cidade, 1.00, txid='TESTE')
     aberta, proxima = emp.loja_situacao()
     return render_template('loja_admin.html', empresa=emp, linhas=linhas, aberta=aberta, proxima=_quando(proxima),
-                           DIAS=DIAS_SEMANA, filtro=filtro, na_vitrine=na_vitrine,
+                           DIAS=DIAS_SEMANA, DIAS_NOMES=DIAS_NOMES, filtro=filtro, na_vitrine=na_vitrine,
                            exemplo_pix=exemplo_pix, qr_exemplo=pix.qr_svg(exemplo_pix) if exemplo_pix else None)
 
 

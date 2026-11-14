@@ -178,6 +178,32 @@ legend { font-size: .9rem; font-weight: 600; color: var(--cacau-700); margin-bot
 .horario strong { display: block; font-size: 1.05rem; }
 .horario small { display: block; opacity: .85; font-size: .82rem; }
 .horario-pedido { margin: 12px 0 0; }
+/* faixa de entrega da vitrine: toca para ver os horários da semana */
+details.horario { display: block; padding: 0; }
+details.horario > summary {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; list-style: none;
+}
+details.horario > summary::-webkit-details-marker { display: none; }
+details.horario > summary > span { font-size: 1.6rem; }
+details.horario > summary::after { content: '▾'; margin-left: auto; opacity: .7; transition: transform .15s; }
+details.horario[open] > summary::after { transform: rotate(180deg); }
+details.horario .horarios { margin: 0 14px 14px; background: rgba(251, 246, 239, .08); }
+details.horario .horarios h2 { display: none; }
+details.horario .horarios th, details.horario .horarios td { color: var(--creme); border-color: rgba(251, 246, 239, .15); }
+details.horario .horarios tr.hoje { background: rgba(200, 132, 63, .25); }
+
+/* tabela de horários da semana */
+.horarios { max-width: 420px; margin: 0 auto 24px; background: var(--branco); border-radius: var(--raio); box-shadow: var(--sombra); padding: 14px 16px; }
+.horarios h2 { margin: 0 0 8px; font-size: 1rem; color: var(--cacau-800); text-align: center; }
+.horarios table { width: 100%; border-collapse: collapse; }
+.horarios th, .horarios td { padding: 9px 8px; border-bottom: 1px solid var(--creme-2); font-size: .95rem; }
+.horarios tr:last-child th, .horarios tr:last-child td { border-bottom: 0; }
+.horarios th { text-align: left; font-weight: 600; color: var(--cacau-800); }
+.horarios td { text-align: right; font-variant-numeric: tabular-nums; color: var(--texto); }
+.horarios tr.hoje { background: #fff3dc; }
+.horarios tr.hoje th, .horarios tr.hoje td { font-weight: 700; }
+.horarios tr.fechado td { color: var(--texto-2); }
+.tag-hoje { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--caramelo); color: var(--cacau-900); font-size: .7rem; font-weight: 700; vertical-align: 1px; }
 .lembrete-horario { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--creme-2); color: var(--cacau-700); font-size: .9rem; }
 .reabre { font-size: 1.15rem; color: var(--cacau-800) !important; }
 

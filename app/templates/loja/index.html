@@ -1,4 +1,5 @@
 {% extends 'loja/base.html' %}
+{% from 'loja/_horarios.html' import tabela_horarios %}
 {% macro reais(v) %}R$ {{ ('%d'|format(v)) if (v * 100)|round|int % 100 == 0 else ('%.2f'|format(v)).replace('.', ',') }}{% endmacro %}
 {% block topo_extra %}
     <button type="button" class="topo-carrinho" id="abrir-carrinho" aria-label="Abrir carrinho">
@@ -6,10 +7,12 @@
     </button>
 {% endblock %}
 {% block content %}
-    {% if empresa.loja_horario %}
-    <div class="horario"><span aria-hidden="true">🛵</span><div><strong>Entregas das {{ empresa.loja_horario }}</strong>
-        <small>Entregamos no seu apartamento nesse horário.</small></div></div>
-    {% endif %}
+    {% set hoje = empresa.horario_agora() %}
+    <details class="horario">
+        <summary><span aria-hidden="true">🛵</span><div><strong>{% if hoje %}Entregas hoje das {{ hoje }}{% else %}Entregamos no seu apartamento{% endif %}</strong>
+            <small>Entregamos no seu apartamento · <u>ver horários da semana</u></small></div></summary>
+        {{ tabela_horarios(empresa, 'Horários da semana') }}
+    </details>
     {% if empresa.loja_aviso %}<div class="aviso">{{ empresa.loja_aviso }}</div>{% endif %}
 
     {% if not itens %}
@@ -123,7 +126,7 @@
             <label>Observação <small>(opcional)</small>
                 <input name="observacao" maxlength="255" placeholder="Ex.: entregar depois das 18h"></label>
             <input name="site" class="isca" tabindex="-1" autocomplete="off" aria-hidden="true">
-            {% if empresa.loja_horario %}<p class="lembrete-horario">🛵 Entregamos das <strong>{{ empresa.loja_horario }}</strong>.</p>{% endif %}
+            {% if hoje %}<p class="lembrete-horario">🛵 Entregamos hoje das <strong>{{ hoje }}</strong>.</p>{% endif %}
             <p id="erro" class="erro" role="alert" hidden></p>
             <button type="submit" class="enviar" id="enviar">Fazer pedido</button>
         </form>

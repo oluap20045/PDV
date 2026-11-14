@@ -29,29 +29,39 @@
             <div class="form-text">Automático abre e fecha sozinha no horário abaixo. Aberta/Fechada é manual: fica assim até você mudar
                 (ex.: viajou, acabou o estoque) — depois é só voltar para Automático.</div>
         </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label" for="loja_abre">Abre às</label>
-            <input type="time" class="form-control" id="loja_abre" name="loja_abre" value="{{ empresa.loja_abre.strftime('%H:%M') }}" required>
-        </div>
-        <div class="col-6 col-md-2">
-            <label class="form-label" for="loja_fecha">Fecha às</label>
-            <input type="time" class="form-control" id="loja_fecha" name="loja_fecha" value="{{ empresa.loja_fecha.strftime('%H:%M') }}" required>
-        </div>
-        <div class="col-12 col-md-8">
-            <label class="form-label d-block">Dias</label>
-            {% for d in DIAS %}
-            <input type="checkbox" class="btn-check" name="loja_dias" id="dia-{{ loop.index0 }}" value="{{ loop.index0 }}" {{ 'checked' if loop.index0|string in empresa.loja_dias }}>
-            <label class="btn btn-sm btn-outline-secondary mb-1" for="dia-{{ loop.index0 }}">{{ d }}</label>
-            {% endfor %}
-        </div>
-        <div class="col-12 col-md-4">
-            <label class="form-label" for="loja_horario">Horário das entregas</label>
-            <div class="input-group">
-                <span class="input-group-text">das</span>
-                <input type="text" class="form-control" id="loja_horario" name="loja_horario" maxlength="60"
-                       value="{{ empresa.loja_horario or '' }}" placeholder="18:00 às 23:00">
+        <div class="col-12 col-lg-8">
+            <label class="form-label d-block">Horário de cada dia <small class="text-muted">(é também o horário das entregas)</small></label>
+            <div class="table-responsive">
+            <table class="table table-sm align-middle mb-1 grade-horario">
+                <thead><tr><th>Dia</th><th>Abre</th><th>Abre às</th><th>Fecha às</th><th></th></tr></thead>
+                <tbody>
+                {% for j in empresa.loja_grade %}
+                {% set i = loop.index0 %}
+                <tr data-dia="{{ i }}" class="{{ '' if j else 'text-muted' }}">
+                    <th scope="row" class="text-capitalize">{{ DIAS_NOMES[i] }}</th>
+                    <td><div class="form-check form-switch mb-0">
+                        <input class="form-check-input dia-aberto" type="checkbox" role="switch" name="dia{{ i }}_aberto" value="1"
+                               id="dia{{ i }}_aberto" {{ 'checked' if j }} aria-label="{{ DIAS_NOMES[i] }} aberto"></div></td>
+                    <td><input type="time" class="form-control form-control-sm dia-abre" name="dia{{ i }}_abre" aria-label="{{ DIAS_NOMES[i] }}: abre às"
+                               value="{{ j[0].strftime('%H:%M') if j else '18:00' }}" {{ '' if j else 'disabled' }}></td>
+                    <td><input type="time" class="form-control form-control-sm dia-fecha" name="dia{{ i }}_fecha" aria-label="{{ DIAS_NOMES[i] }}: fecha às"
+                               value="{{ j[1].strftime('%H:%M') if j else '23:00' }}" {{ '' if j else 'disabled' }}></td>
+                    <td class="text-end">{% if not loop.last %}<button type="button" class="btn btn-sm btn-outline-secondary copiar-dia"
+                        title="Copiar este horário para {{ DIAS_NOMES[i + 1] }}" aria-label="Copiar o horário de {{ DIAS_NOMES[i] }} para {{ DIAS_NOMES[i + 1] }}">↓</button>{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
             </div>
-            <div class="form-text">Aparece em destaque no topo da loja, no carrinho e no pedido.</div>
+            <div class="form-text">Desligue o dia em que não abre. Fecha antes de abrir = vira a meia-noite (ex.: 20:00 às 02:00).
+                ↓ copia o horário para o dia de baixo. No modo Aberta/Fechada o horário é ignorado.</div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <label class="form-label d-block">Como aparece na loja</label>
+            <div class="border rounded p-2 small bg-white">
+                {% for l in empresa.horario_semana() %}<div class="d-flex justify-content-between gap-2 {{ 'fw-bold' if l.hoje }}">
+                    <span>{{ l.dias }}{% if l.hoje %} (hoje){% endif %}</span><span>{{ l.horario or 'Fechado' }}</span></div>{% endfor %}
+            </div>
         </div>
         <div class="col-12 col-md-8">
             <label class="form-label" for="loja_aviso">Recado no topo da loja</label>
@@ -144,6 +154,27 @@
 </style>
 {% endblock %}
 {% block scripts %}
+<script>
+// grade de horário: liga/desliga o dia e ↓ copia o horário para o dia de baixo
+document.querySelectorAll('.grade-horario tbody tr').forEach((tr) => {
+    const aberto = tr.querySelector('.dia-aberto');
+    const sincronizar = () => {
+        tr.querySelectorAll('input[type=time]').forEach((i) => { i.disabled = !aberto.checked; });
+        tr.classList.toggle('text-muted', !aberto.checked);
+    };
+    aberto.addEventListener('change', sincronizar);
+    const copiar = tr.querySelector('.copiar-dia');
+    if (copiar) copiar.addEventListener('click', () => {
+        const prox = tr.nextElementSibling;
+        prox.querySelector('.dia-aberto').checked = aberto.checked;
+        prox.querySelector('.dia-abre').value = tr.querySelector('.dia-abre').value;
+        prox.querySelector('.dia-fecha').value = tr.querySelector('.dia-fecha').value;
+        prox.querySelector('.dia-aberto').dispatchEvent(new Event('change'));
+        const b = prox.querySelector('.copiar-dia');
+        (b || prox.querySelector('.dia-abre')).focus();
+    });
+});
+</script>
 <script>
 (function () {
     // reduz a foto no aparelho (máx. 900 px, JPEG): foto de celular de 5 MB vira ~120 KB

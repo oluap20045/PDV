@@ -1,0 +1,16 @@
+{# tabela do horário da semana (dias seguidos com o mesmo horário juntos), destacando hoje #}
+{% macro tabela_horarios(empresa, titulo='Horário de funcionamento e entregas') %}
+<section class="horarios" aria-labelledby="horarios-titulo">
+    <h2 id="horarios-titulo">{{ titulo }}</h2>
+    <table>
+        <tbody>
+        {% for l in empresa.horario_semana() %}
+            <tr class="{{ 'hoje' if l.hoje }}{{ ' fechado' if not l.horario }}">
+                <th scope="row">{{ l.dias }}{% if l.hoje %} <span class="tag-hoje">hoje</span>{% endif %}</th>
+                <td>{{ l.horario or 'Fechado' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endmacro %}
