@@ -31,7 +31,7 @@
             <td><a href="{{ url_for('combos.editar', id=c.id) }}" class="fw-semibold">{{ c.nome }}</a>
                 <div class="small text-muted">{{ c.produtos|length }} produto(s) para escolher
                     {%- if usos.get(c.id) %} · usado em {{ usos[c.id] }} venda(s){% endif %}</div></td>
-            <td class="text-nowrap">{% if c.promocao %}<span class="badge text-bg-light border">🏷️ Promoção</span>{% else %}Leve {{ c.quantidade }}{% endif %}</td>
+            <td class="text-nowrap">{% if c.promocao %}<span class="badge bg-light text-dark border">🏷️ Promoção</span>{% else %}Leve {{ c.quantidade }}{% endif %}</td>
             <td class="text-end text-nowrap">{{ brl(c.preco) }}</td>
             <td class="text-end text-nowrap">{{ brl(por_unid) }}</td>
             <td class="text-end text-nowrap {{ 'text-danger' if por_unid < custo_medio else '' }}"

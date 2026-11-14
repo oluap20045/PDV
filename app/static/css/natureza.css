@@ -62,13 +62,6 @@
     border-color: var(--folha-400); box-shadow: 0 0 0 .2rem rgba(143, 196, 110, .3);
 }
 
-.tema-natureza .btn-primary { background: var(--folha-600); border-color: var(--folha-600); border-radius: 999px; padding-inline: 1.25rem; }
-.tema-natureza .btn-primary:hover { background: var(--folha-700); border-color: var(--folha-700); }
-.tema-natureza .btn-success {
-    background: var(--folha-800); border-color: var(--folha-800); border-radius: 999px;
-    padding: .8rem 2rem; font-weight: 700; letter-spacing: .02em;
-}
-.tema-natureza .btn-success:hover { background: var(--musgo); border-color: var(--musgo); }
 
 /* carrinho */
 .tema-natureza .table { --bs-table-bg: transparent; color: var(--musgo); }
@@ -109,10 +102,6 @@
 .tema-natureza .table-hover > tbody > tr:hover > * { --bs-table-accent-bg: rgba(143, 196, 110, .18); }
 .tema-natureza .table-warning, .tema-natureza .table-warning > * { --bs-table-bg: #fbefc6; }
 .tema-natureza .list-group-item { background: transparent; border-color: var(--folha-200); }
-.tema-natureza .btn-secondary { border-radius: 999px; }
-.tema-natureza .btn-outline-secondary { border-color: var(--folha-400); color: var(--folha-700); }
-.tema-natureza .btn-outline-secondary:hover { background: var(--folha-100); color: var(--folha-800); }
-.tema-natureza .btn-warning { background: #f1d98a; border-color: #e6c766; color: var(--casca); }
 .tema-natureza .page-link { color: var(--folha-700); }
 .tema-natureza .page-item.active .page-link { background: var(--folha-600); border-color: var(--folha-600); color: #fff; }
 .tema-natureza .navbar .nav-link.active, .tema-natureza .navbar .nav-link:hover { color: #d9f0c6; }
@@ -171,3 +160,56 @@ th[data-ordem] .btn-ordenar { all: unset; cursor: pointer; font-weight: inherit;
 th[data-ordem] .btn-ordenar:hover { text-decoration: underline; }
 th[data-ordem] .btn-ordenar:focus-visible { outline: 2px solid #2a78d6; outline-offset: 2px; border-radius: 2px; }
 th[data-ordem] .seta { font-size: .7em; }
+
+/* ---- botões: um padrão só, em todas as telas ----
+   principal  = .btn-primary / .btn-success  (verde cheio)  -> a ação da tela (Salvar, Cadastrar, Finalizar)
+   secundário = .btn-secondary / .btn-outline-* / .btn-warning (contorno verde) -> Cancelar, Voltar, Editar, filtros
+   perigo     = .btn-danger / .btn-outline-danger (contorno vermelho) -> excluir, remover
+   tamanho: normal, .btn-sm (tabelas e barras) e .btn-lg (Finalizar venda, Entrar) */
+.tema-natureza .btn {
+    border-radius: 999px; font-weight: 600; padding: .42rem 1.1rem; line-height: 1.4;
+    transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s;
+}
+.tema-natureza .btn-sm { padding: .22rem .8rem; font-size: .85rem; }
+.tema-natureza .btn-lg { padding: .7rem 1.8rem; font-size: 1.1rem; font-weight: 700; }
+.tema-natureza .btn:focus-visible, .tema-natureza .btn:focus { box-shadow: 0 0 0 .2rem rgba(143, 196, 110, .45); }
+.tema-natureza .btn-group > .btn { border-radius: 0; }
+.tema-natureza .btn-group > .btn:first-child, .tema-natureza .btn-group > .btn-check:first-child + .btn { border-radius: 999px 0 0 999px; }
+.tema-natureza .btn-group > .btn:last-child { border-radius: 0 999px 999px 0; }
+.tema-natureza .input-group > .btn { border-radius: 0 .375rem .375rem 0; }
+
+.tema-natureza .btn-primary, .tema-natureza .btn-success {
+    background: var(--folha-700); border-color: var(--folha-700); color: #fff;
+}
+.tema-natureza .btn-primary:hover, .tema-natureza .btn-success:hover,
+.tema-natureza .btn-primary:active, .tema-natureza .btn-success:active {
+    background: var(--folha-800); border-color: var(--folha-800); color: #fff;
+}
+
+.tema-natureza .btn-secondary, .tema-natureza .btn-warning, .tema-natureza .btn-outline-secondary,
+.tema-natureza .btn-outline-success, .tema-natureza .btn-outline-primary, .tema-natureza .btn-dark {
+    background: #fff; border-color: var(--folha-400); color: var(--folha-700);
+}
+.tema-natureza .btn-secondary:hover, .tema-natureza .btn-warning:hover, .tema-natureza .btn-outline-secondary:hover,
+.tema-natureza .btn-outline-success:hover, .tema-natureza .btn-outline-primary:hover, .tema-natureza .btn-dark:hover {
+    background: var(--folha-100); border-color: var(--folha-600); color: var(--folha-800);
+}
+/* selecionado (período, filtro, Combo/Promoção) */
+.tema-natureza .btn.active, .tema-natureza .btn-check:checked + .btn,
+.tema-natureza .btn-outline-success:active, .tema-natureza .btn-outline-secondary:active {
+    background: var(--folha-700); border-color: var(--folha-700); color: #fff;
+}
+
+.tema-natureza .btn-danger, .tema-natureza .btn-outline-danger {
+    background: #fff; border-color: #e3a9a9; color: #b02a37;
+}
+.tema-natureza .btn-danger:hover, .tema-natureza .btn-outline-danger:hover,
+.tema-natureza .btn-danger:active, .tema-natureza .btn-outline-danger:active {
+    background: #b02a37; border-color: #b02a37; color: #fff;
+}
+.tema-natureza .btn:disabled, .tema-natureza .btn.disabled { opacity: .5; }
+.tema-natureza .btn-link { border-radius: 0; padding: 0; color: var(--folha-700); }
+
+/* links soltos no conteúdo no verde do tema (não o azul padrão) */
+.tema-natureza .container a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link) { color: var(--folha-700); }
+.tema-natureza .container a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link):hover { color: var(--folha-800); }
