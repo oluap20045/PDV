@@ -48,7 +48,7 @@ def tem_estoque(c, disponivel):
 def combo_dict(c, so_produtos=None):
     ids = [p.id for p in c.produtos if so_produtos is None or p.id in so_produtos]
     return {'id': c.id, 'nome': c.nome, 'rotulo': rotulo_curto(c.nome), 'quantidade': c.quantidade,
-            'preco': round(c.preco, 2), 'produtos': ids, 'titulo': c.titulo}
+            'preco': round(c.preco, 2), 'produtos': ids, 'titulo': c.titulo, 'promocao': c.promocao}
 
 
 def _distribuir(pegar, preco, n):
@@ -166,9 +166,9 @@ def _dados_do_form(combo):
     ids = {int(i) for i in request.form.getlist('produtos') if i.isdigit()}
     produtos = Produto.query.filter(Produto.id.in_(ids)).all() if ids else []
     if not nome:
-        raise ValueError('Dê um nome ao combo (ex.: Trufas laCreme 4 por 12).')
-    if not 2 <= n <= 50:
-        raise ValueError('O combo precisa de 2 a 50 unidades.')
+        raise ValueError('Dê um nome (ex.: Trufas laCreme 4 por 12, ou Panettone Frutas em promoção).')
+    if not 1 <= n <= 50:
+        raise ValueError('Informe de 1 a 50 unidades (1 = preço promocional).')
     if preco <= 0:
         raise ValueError('Informe o preço do combo.')
     if not produtos:
@@ -198,7 +198,8 @@ def lista():
 @bp.route('/novo', methods=['GET', 'POST'])
 @bp.route('/<int:id>', methods=['GET', 'POST'])
 def editar(id=None):
-    combo = db.get_or_404(Combo, id) if id else Combo(ativo=True, no_pdv=True, na_loja=True)
+    combo = db.get_or_404(Combo, id) if id else Combo(ativo=True, no_pdv=True, na_loja=True,
+                                                     quantidade=1 if request.args.get('tipo') == 'promocao' else None)
     if request.method == 'POST':
         try:
             with db.session.no_autoflush:
@@ -210,7 +211,7 @@ def editar(id=None):
         if combo.id is None:
             db.session.add(combo)
         db.session.commit()
-        flash(f'Combo "{combo.nome}" salvo: {combo.titulo}.', 'success')
+        flash(f'{combo.tipo} "{combo.nome}" salvo: {combo.titulo}.', 'success')
         return redirect(url_for('combos.lista'))
     return render_template('combo_form.html', combo=combo, produtos=_produtos(), form=None)
 
@@ -224,7 +225,7 @@ def alternar(id):
     combo = db.get_or_404(Combo, id)
     combo.ativo = not combo.ativo
     db.session.commit()
-    flash(f'Combo "{combo.nome}" {"ativado" if combo.ativo else "desativado"}.', 'success' if combo.ativo else 'info')
+    flash(f'{combo.tipo} "{combo.nome}" {"ativado" if combo.ativo else "desativado"}.', 'success' if combo.ativo else 'info')
     return redirect(url_for('combos.lista'))
 
 
@@ -240,5 +241,5 @@ def excluir(id):
     else:
         db.session.delete(combo)
         db.session.commit()
-        flash(f'Combo "{combo.nome}" excluído.', 'success')
+        flash(f'{combo.tipo} "{combo.nome}" excluído.', 'success')
     return redirect(url_for('combos.lista'))

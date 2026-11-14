@@ -3,10 +3,14 @@
 {% block content %}
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h2 class="mb-0">Combos e promoções</h2>
-        <a href="{{ url_for('combos.editar') }}" class="btn btn-success">+ Novo combo</a>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('combos.editar', tipo='promocao') }}" class="btn btn-outline-success">+ Preço promocional</a>
+            <a href="{{ url_for('combos.editar') }}" class="btn btn-success">+ Novo combo</a>
+        </div>
     </div>
-    <p class="text-muted small">“Leve 4 por R$ 12”: o cliente escolhe entre os produtos do combo e o desconto entra
+    <p class="text-muted small"><strong>Combo</strong> (“leve 4 por R$ 12”): o cliente escolhe entre os produtos do combo e o desconto entra
         <strong>sozinho</strong> no PDV e na loja online assim que o carrinho fecha a quantidade.
+        <strong>Preço promocional</strong> (“de R$ 39,99 por R$ 19,90”): vale para cada unidade dos produtos marcados; a loja mostra o preço riscado.
         Cada unidade dá baixa no estoque do próprio produto. Sem estoque para fechar o combo, ele some do PDV e da loja
         sozinho e volta quando o estoque chegar.</p>
 
@@ -16,7 +20,7 @@
     {% else %}
     <div class="table-responsive">
     <table class="table align-middle">
-        <thead><tr><th>Combo</th><th>Leve</th><th class="text-end">Preço</th><th class="text-end">Por unidade</th>
+        <thead><tr><th>Nome</th><th>Tipo</th><th class="text-end">Preço</th><th class="text-end">Por unidade</th>
             <th class="text-end">Margem</th><th>Vale em</th><th>Situação</th><th></th></tr></thead>
         <tbody>
         {% for c in combos %}
@@ -27,7 +31,7 @@
             <td><a href="{{ url_for('combos.editar', id=c.id) }}" class="fw-semibold">{{ c.nome }}</a>
                 <div class="small text-muted">{{ c.produtos|length }} produto(s) para escolher
                     {%- if usos.get(c.id) %} · usado em {{ usos[c.id] }} venda(s){% endif %}</div></td>
-            <td>{{ c.quantidade }}</td>
+            <td class="text-nowrap">{% if c.promocao %}<span class="badge text-bg-light border">🏷️ Promoção</span>{% else %}Leve {{ c.quantidade }}{% endif %}</td>
             <td class="text-end text-nowrap">{{ brl(c.preco) }}</td>
             <td class="text-end text-nowrap">{{ brl(por_unid) }}</td>
             <td class="text-end text-nowrap {{ 'text-danger' if por_unid < custo_medio else '' }}"
@@ -47,7 +51,7 @@
                 <form method="POST" action="{{ url_for('combos.alternar', id=c.id) }}" class="d-inline">
                     <button class="btn btn-sm btn-outline-secondary">{{ 'Desativar' if c.ativo else 'Ativar' }}</button></form>
                 <form method="POST" action="{{ url_for('combos.excluir', id=c.id) }}" class="d-inline"
-                      data-msg="Excluir o combo {{ c.nome }}?" onsubmit="return confirm(this.dataset.msg)">
+                      data-msg="Excluir {{ 'a promoção' if c.promocao else 'o combo' }} {{ c.nome }}?" onsubmit="return confirm(this.dataset.msg)">
                     <button class="btn btn-sm btn-outline-danger" title="Excluir">✕</button></form>
             </td>
         </tr>

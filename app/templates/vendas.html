@@ -68,7 +68,7 @@
                         {% if lucro_total_venda.append(lucro_total_venda.pop() + lucro_item) %}{% endif %}
 
                         <tr>
-                            <td>{{ item.produto.nome }}{% if item.combo %}<div class="small text-success">🎁 combo {{ item.combo.nome }}</div>{% endif %}</td>
+                            <td>{{ item.produto.nome }}{% if item.combo %}<div class="small text-success">{{ '🏷️ promoção' if item.combo.promocao else '🎁 combo' }} {{ item.combo.nome }}</div>{% endif %}</td>
                             <td>{{ item.quantidade }}</td>
                             <td>R$ {{ "%.2f"|format(item.preco_unitario) }}</td>
                             <td>R$ {{ "%.2f"|format(item.custo_unitario) }}</td>

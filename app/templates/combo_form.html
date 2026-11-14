@@ -4,27 +4,34 @@
 {% block content %}
 {% set escolhidos = (form.getlist('produtos')|map('int')|list) if form else (combo.produtos|map(attribute='id')|list) %}
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h2 class="mb-0">{{ 'Editar combo' if combo.id else 'Novo combo' }}</h2>
+        {% set eh_promo = (campo('quantidade', combo.quantidade or 3)|trim) == '1' %}
+        <h2 class="mb-0" id="titulo-form">{{ 'Editar' if combo.id else 'Novo' }} {{ 'preço promocional' if eh_promo else 'combo' }}</h2>
         <a href="{{ url_for('combos.lista') }}" class="btn btn-outline-secondary btn-sm">Voltar</a>
     </div>
 
     <form method="POST" id="form-combo">
+        <div class="btn-group mb-3" role="radiogroup" aria-label="Tipo">
+            <input type="radio" class="btn-check" name="tipo_ui" id="tipo-combo" value="combo" autocomplete="off" {{ 'checked' if not eh_promo }}>
+            <label class="btn btn-outline-success" for="tipo-combo">🎁 Combo <small class="d-none d-sm-inline">(leve N por R$ X)</small></label>
+            <input type="radio" class="btn-check" name="tipo_ui" id="tipo-promo" value="promocao" autocomplete="off" {{ 'checked' if eh_promo }}>
+            <label class="btn btn-outline-success" for="tipo-promo">🏷️ Preço promocional <small class="d-none d-sm-inline">(de/por, por unidade)</small></label>
+        </div>
         <div class="row g-3 mb-3">
             <div class="col-12 col-md-6">
-                <label class="form-label" for="nome">Nome do combo</label>
+                <label class="form-label" for="nome">Nome</label>
                 <input name="nome" id="nome" class="form-control" maxlength="80" required
-                       value="{{ campo('nome', combo.nome) }}" placeholder="Trufas laCreme 13 g — 4 por 12">
+                       value="{{ campo('nome', combo.nome) }}" placeholder="{{ 'Panettone Frutas — última unidade' if eh_promo else 'Trufas laCreme 13 g — 4 por 12' }}">
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-md-2" id="col-quantidade" {{ 'hidden' if eh_promo }}>
                 <label class="form-label" for="quantidade">Leve</label>
                 <div class="input-group">
-                    <input name="quantidade" id="quantidade" type="number" min="2" max="50" class="form-control" required
+                    <input name="quantidade" id="quantidade" type="number" min="1" max="50" class="form-control" required
                            value="{{ campo('quantidade', combo.quantidade or 3) }}">
                     <span class="input-group-text">un.</span>
                 </div>
             </div>
             <div class="col-6 col-md-2">
-                <label class="form-label" for="preco">Por</label>
+                <label class="form-label" for="preco" id="rotulo-preco">{{ 'Preço promocional' if eh_promo else 'Por' }}</label>
                 <div class="input-group">
                     <span class="input-group-text">R$</span>
                     <input name="preco" id="preco" class="form-control" inputmode="decimal" required
@@ -63,7 +70,7 @@
         <div class="card mb-3">
             <div class="card-body">
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                    <h5 class="mb-0 me-auto">Produtos que o cliente pode escolher <span class="badge bg-success" id="qtd-marcados">0</span></h5>
+                    <h5 class="mb-0 me-auto" id="titulo-produtos">{{ 'Produtos em promoção' if eh_promo else 'Produtos que o cliente pode escolher' }} <span class="badge bg-success" id="qtd-marcados">0</span></h5>
                     <input type="search" id="busca" class="form-control form-control-sm" style="max-width: 16rem" placeholder="Buscar produto..." autocomplete="off">
                     <select id="categoria" class="form-select form-select-sm" style="max-width: 12rem" aria-label="Categoria">
                         <option value="">Todas as categorias</option>
@@ -99,7 +106,7 @@
         </div>
 
         <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-success">Salvar combo</button>
+            <button type="submit" class="btn btn-success" id="salvar">Salvar {{ 'promoção' if eh_promo else 'combo' }}</button>
             <a href="{{ url_for('combos.lista') }}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
     </form>
@@ -122,11 +129,41 @@
         });
     }
 
+    // tipo: combo (leve N) ou preço promocional (leve 1)
+    let qtdCombo = $('#quantidade').value === '1' ? 3 : $('#quantidade').value;
+    function tipo() {
+        const promo = $('#tipo-promo').checked;
+        if (promo) { if ($('#quantidade').value !== '1') qtdCombo = $('#quantidade').value; $('#quantidade').value = 1; }
+        else if ($('#quantidade').value === '1') $('#quantidade').value = qtdCombo || 3;
+        $('#col-quantidade').hidden = promo;
+        $('#rotulo-preco').textContent = promo ? 'Preço promocional' : 'Por';
+        $('#titulo-produtos').firstChild.textContent = promo ? 'Produtos em promoção ' : 'Produtos que o cliente pode escolher ';
+        $('#salvar').textContent = promo ? 'Salvar promoção' : 'Salvar combo';
+        $('#titulo-form').textContent = $('#titulo-form').textContent.split(' ')[0] + (promo ? ' preço promocional' : ' combo');
+        resumo();
+    }
+    ['#tipo-combo', '#tipo-promo'].forEach(s => $(s).addEventListener('change', tipo));
+
+    function resumoPromo(preco, marcados, box) {
+        if (!preco) { box.textContent = 'Informe o preço promocional.'; return; }
+        if (!marcados.length) { box.textContent = 'Marque abaixo o(s) produto(s) em promoção.'; return; }
+        box.innerHTML = marcados.map(l => {
+            const de = +l.dataset.preco, custo = +l.dataset.custo, nome = l.querySelector('label').textContent;
+            const pct = de ? Math.round((1 - preco / de) * 100) : 0;
+            let t = `<div><strong></strong>: de <s>${brl(de)}</s> por <strong>${brl(preco)}</strong>`
+                + (preco < de ? ` (−${pct}%)` : '') + (custo ? ` · lucro ${brl(preco - custo)}` : ' · <span class="text-muted">sem custo cadastrado</span>');
+            if (custo && preco < custo) t += ` <span class="text-danger">⚠ abaixo do custo (${brl(custo)})</span>`;
+            if (preco >= de) t += ' <span class="text-warning">⚠ não é mais barato que o preço normal: não vai ser aplicado</span>';
+            return t.replace('<strong></strong>', '<strong>' + nome.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c])) + '</strong>') + '</div>';
+        }).join('');
+    }
+
     function resumo() {
         const n = parseInt($('#quantidade').value) || 0, preco = num($('#preco').value);
         const marcados = linhas.filter(l => l.querySelector('input').checked);
         $('#qtd-marcados').textContent = marcados.length;
         const box = $('#resumo');
+        if (n === 1) return resumoPromo(preco, marcados, box);
         if (!n || !preco) { box.textContent = 'Preencha quantos itens e o preço do combo.'; return; }
         const unid = preco / n;
         const partes = [`Cada unidade sai por <strong>${brl(unid)}</strong>.`];

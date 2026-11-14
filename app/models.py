@@ -569,5 +569,16 @@ class Combo(db.Model):
                     and (self.fim is None or self.fim >= hoje))
 
     @property
+    def promocao(self):
+        """Leve 1 = preço promocional ("de R$ 39,99 por R$ 19,90"), em vez de combo."""
+        return self.quantidade == 1
+
+    @property
+    def tipo(self):
+        return 'Promoção' if self.promocao else 'Combo'
+
+    @property
     def titulo(self):
+        if self.promocao:
+            return f'por R$ {self.preco:.2f}'.replace('.', ',')
         return f'{self.quantidade} por R$ {self.preco:.2f}'.replace('.', ',')

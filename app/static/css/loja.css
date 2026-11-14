@@ -297,3 +297,14 @@ details.horario .horarios tr.hoje { background: rgba(200, 132, 63, .25); }
 .combo-linha .economia { color: var(--verde); font-weight: 700; white-space: nowrap; }
 .combo-falta { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: #fff3dc; color: #8a5a00; font-size: .85rem; }
 .lista-itens .combo-item small { display: block; color: var(--texto-2); font-size: .8rem; }
+
+/* preço promocional (de/por) */
+.promo { position: relative; }
+.promo-pct { position: absolute; top: 8px; left: 8px; z-index: 2; background: #b8322a; color: #fff; font-weight: 700;
+             font-size: .82rem; padding: 3px 9px; border-radius: 999px; }
+.promo-oferta s { color: #8a7262; font-size: .9rem; }
+.selo-promo { background: #b8322a; color: #fff; }
+.preco-promo { display: flex; flex-direction: column; line-height: 1.1; }
+.preco-promo s { font-size: .8rem; color: #8a7262; }
+.preco-promo strong { color: #b8322a; }
+.promo-oferta strong { white-space: nowrap; }

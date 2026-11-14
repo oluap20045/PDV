@@ -25,27 +25,35 @@
         {% if combos %}
         <section class="promos" aria-labelledby="promos-titulo">
             <div class="promos-cabeca">
-                <h2 id="promos-titulo">Combos com desconto</h2>
-                <p>Escolha os sabores: o desconto entra sozinho no carrinho.</p>
+                {% set n_promos = combos|selectattr('promocao')|list|length %}
+                <h2 id="promos-titulo">{{ 'Combos com desconto' if not n_promos else ('Promoções' if n_promos == combos|length else 'Promoções e combos') }}</h2>
+                <p>{{ 'O desconto entra sozinho no carrinho.' if n_promos == combos|length else 'Escolha os sabores: o desconto entra sozinho no carrinho.' }}</p>
             </div>
             <div class="promos-lista">
                 {% for c in combos %}
-                <article class="promo" data-combo="{{ c.id }}">
+                <article class="promo {{ 'promo-preco' if c.promocao }}" data-combo="{{ c.id }}">
+                    {% if c.promocao and c.pct > 0 %}<span class="promo-pct">−{{ c.pct }}%</span>{% endif %}
                     <div class="promo-fotos n{{ c.fotos|length }}" aria-hidden="true">
                         {% for f in c.fotos %}<img src="{{ f }}" alt="" loading="lazy">{% else %}<span>🍫</span>{% endfor %}
                     </div>
                     <div class="promo-corpo">
+                        {% if c.promocao %}
+                        <p class="promo-oferta">de <s>{{ reais(c.de) }}</s>{% if c.de_min != c.de %} <small>(até)</small>{% endif %} por <strong>{{ reais(c.preco) }}</strong></p>
+                        <h3 class="promo-nome">{{ c.rotulo }}</h3>
+                        <p class="promo-info">{% if c.max == 1 %}Última unidade!{% elif c.max <= 3 %}Só {{ c.max }} unidades{% else %}Preço promocional{% endif %}{% if c.produtos|length > 1 %} · {{ c.produtos|length }} opções{% endif %}</p>
+                        {% else %}
                         <p class="promo-oferta">{{ c.quantidade }} por <strong>{{ reais(c.preco) }}</strong></p>
                         <h3 class="promo-nome">{{ c.rotulo }}</h3>
                         <p class="promo-info">{{ reais(c.cada) }} cada · {{ c.produtos|length }} sabor{{ 'es' if c.produtos|length != 1 }}</p>
-                        {% if c.economia_max > 0.009 %}<p class="promo-economia">Economize até {{ reais(c.economia_max) }}</p>{% endif %}
+                        {% endif %}
+                        {% if c.economia_max > 0.009 %}<p class="promo-economia">Economize {{ '' if c.promocao and c.de_min == c.de else 'até ' }}{{ reais(c.economia_max) }}</p>{% endif %}
                     </div>
                     <div class="promo-rodape">
                         <div class="promo-progresso" hidden>
                             <div class="progresso" aria-hidden="true"><span></span></div>
                             <small aria-live="polite"></small>
                         </div>
-                        <button type="button" class="promo-botao" data-combo="{{ c.id }}">Montar combo</button>
+                        <button type="button" class="promo-botao" data-combo="{{ c.id }}">{{ 'Ver oferta' if c.promocao else 'Montar combo' }}</button>
                     </div>
                 </article>
                 {% endfor %}
@@ -72,7 +80,8 @@
             {% for i in itens %}
             <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}">
                 <div class="produto-foto">
-                    {% for c in combos if c.id in i.combos %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}
+                    {% if i.promo %}<span class="selo-combo selo-promo">🏷️ Promoção</span>
+                    {% else %}{% for c in combos if c.id in i.combos and not c.promocao %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}{% endif %}
                     {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
                     {% else %}<span aria-hidden="true">🍫</span>{% endif %}
                 </div>
@@ -80,7 +89,9 @@
                     <h2>{{ i.nome }}</h2>
                     {% if i.descricao %}<p class="desc">{{ i.descricao }}</p>{% endif %}
                     <div class="produto-rodape">
-                        <strong class="preco">R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</strong>
+                        {% if i.promo %}<span class="preco preco-promo"><s>R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</s>
+                            <strong>R$ {{ ('%.2f'|format(i.promo)).replace('.', ',') }}</strong></span>
+                        {% else %}<strong class="preco">R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</strong>{% endif %}
                         <div class="qtd" data-controle="{{ i.id }}">
                             <button type="button" class="adicionar">Adicionar</button>
                         </div>

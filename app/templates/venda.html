@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${brl(g.combo.preco)}</td>
             <td class="text-nowrap"><button type="button" class="btn btn-danger btn-sm" data-acao="remover" title="Tirar o combo">✕</button>
                 ${g.linhas.map(l => `<input type="hidden" name="carrinho[]" value="${l.id}|${l.qtd}|${l.preco.toFixed(2)}|${g.combo.id}|${n}">`).join('')}</td>`;
-        tr.querySelector('.fw-semibold').textContent = '🎁 ' + g.combo.nome;
+        tr.querySelector('.fw-semibold').textContent = (g.combo.promocao ? '🏷️ ' : '🎁 ') + g.combo.nome;
         const qtdPorId = {};
         g.linhas.forEach(l => { qtdPorId[l.id] = (qtdPorId[l.id] || 0) + l.qtd; });
         tr.querySelector('.combo-itens').textContent = Object.entries(qtdPorId).map(([id, q]) => `${q}× ${produtos[id].nome}`).join(', ');

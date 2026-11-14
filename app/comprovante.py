@@ -106,7 +106,7 @@ def _desenhar(pdf, venda, empresa):
         if bloco[0] == 'combo':
             _, combo, itens, total = bloco
             pdf.set_font('Helvetica', 'B', 8)
-            pdf.multi_cell(UTIL, 4, _txt(f'Combo {combo.nome}' if combo else 'Combo'), new_x='LMARGIN', new_y='NEXT')
+            pdf.multi_cell(UTIL, 4, _txt(f'{combo.tipo} {combo.nome}' if combo else 'Combo'), new_x='LMARGIN', new_y='NEXT')
             pdf.set_font('Helvetica', '', 7)
             for it in itens:
                 pdf.multi_cell(UTIL, 3.5, _txt(f'  {it.quantidade} x {it.produto.nome if it.produto else "Produto"}'),
@@ -158,7 +158,7 @@ def texto_whatsapp(venda, empresa):
         if bloco[0] == 'combo':
             _, combo, itens, total = bloco
             escolhidos = ', '.join(f'{it.quantidade}x {it.produto.nome if it.produto else "Produto"}' for it in itens)
-            linhas.append(f'• 🎁 Combo {combo.nome if combo else ""} ({escolhidos}) — {brl(total)}')
+            linhas.append(f'• {"🏷️" if combo and combo.promocao else "🎁"} {combo.tipo if combo else "Combo"} {combo.nome if combo else ""} ({escolhidos}) — {brl(total)}')
             continue
         item = bloco[1]
         nome = item.produto.nome if item.produto else 'Produto'

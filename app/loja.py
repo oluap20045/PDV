@@ -128,8 +128,15 @@ def index():
         c['cada'] = round(c['preco'] / c['quantidade'], 2)
         # "economize até": levando as opções mais caras (o cálculo real vem no carrinho)
         c['economia_max'] = round(opcoes[0]['preco'] * c['quantidade'] - c['preco'], 2) if opcoes else 0
+        c['de'] = opcoes[0]['preco'] if opcoes else 0                     # preço promocional: "de R$ X por R$ Y"
+        c['de_min'] = opcoes[-1]['preco'] if opcoes else 0
+        c['pct'] = round(100 * (1 - c['preco'] / c['de'])) if c['de'] else 0
+        c['max'] = sum(por_id[pid]['max'] for pid in c['produtos'])
+    combos.sort(key=lambda c: not c['promocao'])                           # promoções primeiro
     for i in itens:
         i['combos'] = [c['id'] for c in combos if i['id'] in c['produtos']]
+        promo = [c['preco'] for c in combos if c['promocao'] and i['id'] in c['produtos'] and c['preco'] < i['preco'] - 0.004]
+        i['promo'] = min(promo) if promo else None
     return render_template('loja/index.html', empresa=emp, itens=itens, categorias=categorias, pagamentos=pagamentos,
                            combos=combos)
 
@@ -290,7 +297,7 @@ def ver_pedido(codigo):
         linhas = [f'Olá! Fiz o pedido #{pedido.id} na loja:']
         for bloco in agrupar(pedido.itens):
             if bloco[0] == 'combo':
-                linhas.append(f'• Combo {bloco[1].nome}: ' + ', '.join(f'{it.quantidade}x {it.produto.nome}' for it in bloco[2]))
+                linhas.append(f'• {bloco[1].tipo} {bloco[1].nome}: ' + ', '.join(f'{it.quantidade}x {it.produto.nome}' for it in bloco[2]))
             else:
                 linhas.append(f'• {bloco[1].quantidade}x {bloco[1].produto.nome}')
         linhas += [f'Total: R$ {pedido.total:.2f}'.replace('.', ','), f'Entrega: {pedido.entrega}',

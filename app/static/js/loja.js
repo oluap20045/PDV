@@ -70,6 +70,7 @@
     }
 
     function textoProgresso(c, p) {
+        if (c.promocao) return p.fechados ? `✓ ${p.fechados > 1 ? p.fechados + ' unidades' : 'No carrinho'} com desconto` : 'Preço promocional';
         if (p.parcial) {
             const falta = c.quantidade - p.parcial;
             return `${p.parcial} de ${c.quantidade} escolhido${p.parcial > 1 ? 's' : ''} · falta${falta > 1 ? 'm' : ''} ${falta}`
@@ -93,7 +94,8 @@
                 box.querySelector('.progresso span').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : 100}%`;
                 box.querySelector('small').textContent = textoProgresso(c, p);
             }
-            card.querySelector('.promo-botao').textContent = p.fechados && !p.parcial ? 'Montar outro' : (p.parcial ? 'Continuar' : 'Montar combo');
+            card.querySelector('.promo-botao').textContent = c.promocao ? (p.fechados ? '✓ No carrinho' : 'Ver oferta')
+                : (p.fechados && !p.parcial ? 'Montar outro' : (p.parcial ? 'Continuar' : 'Montar combo'));
         });
         const barra = $('#modo-combo');
         if (!barra) return;
@@ -101,11 +103,13 @@
         if (comboAtivo) {
             const c = comboAtivo, p = progresso(c, r);
             $('#modo-combo-titulo').textContent = c.rotulo || c.nome;
-            $('#modo-combo-status').textContent = `${c.quantidade} por R$ ${reaisCurto(c.preco)} · ${textoProgresso(c, p)}`;
+            $('#modo-combo-status').textContent = `${oferta(c)} · ${textoProgresso(c, p)}`;
             $('#modo-combo-barra').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : (p.fechados ? 100 : 0)}%`;
             barra.classList.toggle('pronto', !!p.fechados && !p.parcial);
         }
     }
+
+    const oferta = c => (c.promocao ? `por R$ ${reaisCurto(c.preco)}` : `${c.quantidade} por R$ ${reaisCurto(c.preco)}`);
 
     // combos "leve N por R$ X" (mesma regra do servidor: static/js/combos.js)
     function combos() {
@@ -122,7 +126,7 @@
             const d = document.createElement('div');
             d.className = 'combo-linha';
             d.innerHTML = '<div><strong></strong><small></small></div><span class="economia"></span>';
-            d.querySelector('strong').textContent = `🎁 ${g.combo.rotulo || g.combo.nome} · ${g.combo.quantidade} por R$ ${reaisCurto(g.combo.preco)}`;
+            d.querySelector('strong').textContent = `${g.combo.promocao ? '🏷️ Promoção:' : '🎁'} ${g.combo.rotulo || g.combo.nome} · ${oferta(g.combo)}`;
             d.querySelector('small').textContent = Object.entries(qtdPorId).map(([id, q]) => `${q}× ${produtos[id].nome}`).join(', ');
             d.querySelector('.economia').textContent = `− R$ ${reais(g.economia)}`;
             box.appendChild(d);

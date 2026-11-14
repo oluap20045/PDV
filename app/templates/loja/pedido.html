@@ -20,7 +20,7 @@
         <ul class="lista-itens">
             {% for b in blocos %}
             {% if b[0] == 'combo' %}
-            <li class="combo-item"><span>🎁 Combo {{ b[1].nome }}
+            <li class="combo-item"><span>{{ '🏷️' if b[1].promocao else '🎁' }} {{ b[1].tipo }} {{ b[1].nome }}
                 <small>{% for it in b[2] %}{{ it.quantidade }}× {{ it.produto.nome }}{{ ', ' if not loop.last }}{% endfor %}</small></span>
                 <span>R$ {{ ('%.2f'|format(b[3])).replace('.', ',') }}</span></li>
             {% else %}
