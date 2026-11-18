@@ -63,6 +63,20 @@ def estoque_livre():
     return lambda prod: max((prod.quantidade or 0) - reservado.get(prod.id, 0), 0)
 
 
+MINUSCULAS = {'de', 'da', 'do', 'das', 'dos', 'ao', 'com', 'e', 'em', 'a', 'o'}
+SIGLAS = {'CX': 'Cx', 'UN': 'un', 'G': 'g', 'KG': 'kg', 'ML': 'ml'}
+
+
+def nome_vitrine(nome):
+    """Só para exibir na loja: 'CX 70 MIAU RECHEADO 30G' -> 'Cx 70 Miau Recheado 30 g'; tira '(1002642)' do fim."""
+    n = re.sub(r'\s*\(\d{4,}\)\s*$', '', nome or '').strip()
+    if not re.search(r'[a-zà-ú]', n):                       # tudo em maiúsculas
+        palavras = n.lower().split()
+        n = ' '.join(w if i and w in MINUSCULAS else SIGLAS.get(w.upper(), w[:1].upper() + w[1:])
+                     for i, w in enumerate(palavras))
+    return re.sub(r'(\d)\s*(g|kg|ml)\b', r'\1 \2', n, flags=re.I)
+
+
 def _vitrine():
     livre = estoque_livre()
     produtos = Produto.query.filter_by(na_loja=True).order_by(Produto.categoria, Produto.nome).all()
@@ -70,7 +84,7 @@ def _vitrine():
     for p in produtos:
         disp = livre(p)
         if disp > 0 and p.preco > 0:
-            itens.append({'id': p.id, 'nome': p.nome, 'preco': round(p.preco, 2), 'max': min(disp, MAX_POR_ITEM),
+            itens.append({'id': p.id, 'nome': nome_vitrine(p.nome), 'preco': round(p.preco, 2), 'max': min(disp, MAX_POR_ITEM),
                           'categoria': (p.categoria or 'Outros').strip() or 'Outros', 'descricao': p.descricao or '',
                           'foto': url_for('loja.foto', id=p.id, v=p.foto.versao) if p.foto else None})
     return itens
@@ -134,6 +148,7 @@ def index():
               if sum(por_id[pid]['max'] for pid in d['produtos']) >= d['quantidade']]
     for c in combos:
         opcoes = sorted((por_id[pid] for pid in c['produtos']), key=lambda i: -i['preco'])
+        c['rotulo'] = nome_vitrine(c['rotulo'])
         c['fotos'] = [i['foto'] for i in opcoes if i['foto']][:3]
         c['cada'] = round(c['preco'] / c['quantidade'], 2)
         # "economize até": levando as opções mais caras (o cálculo real vem no carrinho)

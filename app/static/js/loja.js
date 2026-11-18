@@ -101,6 +101,14 @@
         $('#enviar').disabled = !ids.length;
     }
 
+    // filtro da grade (categoria ou "sabores do combo"); o chip do combo só aparece quando é ele o filtro
+    function filtrar(mostra, chipAtivo) {
+        document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === chipAtivo));
+        const chip = $('#chip-combo');
+        if (chip) chip.hidden = chipAtivo !== chip;
+        document.querySelectorAll('.produto').forEach(p => { p.hidden = !mostra(p); });
+    }
+
     document.addEventListener('click', ev => {
         const b = ev.target.closest('button');
         if (!b) return;
@@ -112,10 +120,16 @@
             if (b.classList.contains('menos')) definir(id, (carrinho[id] || 0) - 1);
         }
         if (b.classList.contains('chip')) {
-            rastro('categoria', b.dataset.cat || 'Tudo');
-            document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === b));
-            document.querySelectorAll('.produto').forEach(p => { p.hidden = !!b.dataset.cat && p.dataset.cat !== b.dataset.cat; });
-            desenhar();
+            const cat = b.id === 'chip-combo' ? '' : (b.dataset.cat || '');   // tocar no combo escolhido = ver tudo
+            rastro('categoria', cat || 'Tudo');
+            filtrar(p => !cat || p.dataset.cat === cat, cat ? b : document.querySelector('.chip[data-cat=""]'));
+        }
+        if (b.classList.contains('oferta')) {
+            rastro('clique', 'Combo: ' + b.dataset.rotulo);
+            const chip = $('#chip-combo');
+            chip.textContent = '🏷️ ' + b.dataset.rotulo + '  ✕';
+            filtrar(p => p.dataset.combos.split(' ').includes(b.dataset.oferta), chip);
+            ($('.categorias') || $('#grade')).scrollIntoView({behavior: 'smooth', block: 'start'});
         }
     });
 
