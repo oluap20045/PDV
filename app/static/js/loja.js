@@ -129,6 +129,7 @@
     const form = $('#form-pedido');
     const cliente = ler('loja-cliente', {});
     if (cliente.nome) form.elements.nome.value = cliente.nome;
+    if (cliente.whatsapp) form.elements.whatsapp.value = cliente.whatsapp;
     // guardado pela versão anterior do site: bloco/apto separados ou o texto "Bloco 3, apto 42"
     const endereco = cliente.endereco || (cliente.bloco && cliente.apartamento ? `Bloco ${cliente.bloco}, ap ${cliente.apartamento}` : cliente.entrega);
     if (endereco) form.elements.endereco.value = endereco;
@@ -143,14 +144,15 @@
         ev.preventDefault();
         const f = form.elements;
         const dados = {
-            nome: f.nome.value.trim(), endereco: f.endereco.value.trim(),
+            nome: f.nome.value.trim(), whatsapp: f.whatsapp.value.trim(), endereco: f.endereco.value.trim(),
             pagamento: (form.querySelector('input[name="pagamento"]:checked') || {}).value || '',
             site: f.site.value,
             itens: Object.entries(carrinho).map(([id, qtd]) => ({id: +id, qtd})),
         };
         if (dados.nome.length < 2) return erro('Informe seu nome.');
+        if (dados.whatsapp && !/^\d{10,11}$/.test(dados.whatsapp.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''))) return erro('Confira o celular: DDD + número (ou deixe em branco).');
         if (dados.endereco.length < 3) return erro('Informe o endereço de entrega.');
-        guardar('loja-cliente', {nome: dados.nome, endereco: dados.endereco, pagamento: dados.pagamento});
+        guardar('loja-cliente', {nome: dados.nome, whatsapp: dados.whatsapp, endereco: dados.endereco, pagamento: dados.pagamento});
 
         const botao = $('#enviar');
         botao.disabled = true;

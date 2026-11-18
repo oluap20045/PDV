@@ -173,6 +173,9 @@ def fazer_pedido():
         return jsonify(erro='Muitos pedidos seguidos deste aparelho. Espere alguns minutos ou chame no WhatsApp.'), 429
 
     nome = re.sub(r'\s+', ' ', str(dados.get('nome') or '')).strip()[:150]
+    whats = re.sub(r'\D', '', str(dados.get('whatsapp') or ''))
+    if whats.startswith('55') and len(whats) in (12, 13):
+        whats = whats[2:]
     from app.sorteios import achar_ou_criar_cliente, chave_nome, limpar_apto, limpar_bloco
     endereco = re.sub(r'\s+', ' ', str(dados.get('endereco') or dados.get('entrega') or '')).strip()[:120]
     if not endereco and dados.get('bloco') and dados.get('apartamento'):        # página antiga aberta no celular
@@ -183,6 +186,8 @@ def fazer_pedido():
     pagamento = str(dados.get('pagamento') or '').replace(' na entrega', '')
     if len(nome) < 2:
         return jsonify(erro='Informe seu nome.'), 400
+    if whats and len(whats) not in (10, 11):
+        return jsonify(erro='Confira o celular: DDD + número (ou deixe em branco).'), 400
     if len(endereco) < 3:
         return jsonify(erro='Informe o endereço de entrega.'), 400
     if pagamento not in PAGAMENTOS:
@@ -216,15 +221,18 @@ def fazer_pedido():
         return jsonify(erro=f'Alguns itens acabaram de ser vendidos: {nomes}. Ajustei seu carrinho.', faltou=faltou), 409
 
     if bloco and apto:
-        # mesma regra do sorteio: nome + bloco + apto = mesmo cliente
-        cliente = achar_ou_criar_cliente(nome, '', bloco, apto, origem='loja')
+        # mesma regra do sorteio: nome + bloco + apto (ou o celular de quem pediu antes sem apto) = mesmo cliente
+        cliente = achar_ou_criar_cliente(nome, whats, bloco, apto, origem='loja')
     else:
-        # família / outro endereço: mesmo nome (sem acento/maiúscula) = mesmo cliente
+        # família / outro endereço: mesmo celular = mesmo cliente; senão, mesmo nome ainda sem celular
         chave = chave_nome(nome)
-        cliente = next((c for c in Cliente.query.filter(Cliente.padrao.is_(False)).order_by(Cliente.id)
-                        if chave_nome(c.nome) == chave), None)
+        cliente = (Cliente.query.filter_by(whatsapp=whats).order_by(Cliente.id).first() if whats else None) or next(
+            (c for c in Cliente.query.filter(Cliente.padrao.is_(False), db.or_(Cliente.whatsapp.is_(None), Cliente.whatsapp == ''))
+             .order_by(Cliente.id) if chave_nome(c.nome) == chave), None)
+        if cliente is not None and whats and not cliente.whatsapp:
+            cliente.whatsapp = whats
         if cliente is None:
-            cliente = Cliente(nome=nome, origem='loja', criado_em=datetime.now())
+            cliente = Cliente(nome=nome, whatsapp=whats or None, origem='loja', criado_em=datetime.now())
             db.session.add(cliente)
             db.session.flush()
 

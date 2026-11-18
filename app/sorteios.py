@@ -85,7 +85,7 @@ def achar_ou_criar_cliente(nome, whatsapp, bloco, apto, origem='sorteio'):
         if not c.apartamento and chave_nome(c.nome).split(' ')[0] == primeiro:
             c.bloco, c.apartamento = bloco, apto
             return c
-    c = Cliente(nome=nome, whatsapp=whatsapp, bloco=bloco, apartamento=apto, origem=origem, criado_em=datetime.now())
+    c = Cliente(nome=nome, whatsapp=whatsapp or None, bloco=bloco, apartamento=apto, origem=origem, criado_em=datetime.now())
     db.session.add(c)
     db.session.flush()
     return c

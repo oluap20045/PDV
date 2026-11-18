@@ -119,6 +119,7 @@ button { cursor: pointer; }
 .form-pedido { display: flex; flex-direction: column; gap: 12px; padding: 4px 16px 20px; }
 .form-pedido label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; font-weight: 600; color: var(--cacau-700); }
 .form-pedido small { font-weight: 400; color: var(--texto-2); }
+.form-pedido .dica { font-size: .8rem; }
 .form-pedido input:not([type=radio]) {
     padding: 11px 12px; border: 1px solid #dcc8b4; border-radius: 10px; background: var(--branco); font-size: 16px;
 }
