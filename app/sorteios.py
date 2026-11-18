@@ -80,7 +80,7 @@ def achar_ou_criar_cliente(nome, whatsapp, bloco, apto, origem='sorteio'):
                 c.whatsapp = whatsapp            # o número mais recente é o que a pessoa usa
             return c
     primeiro = chave.split(' ')[0]
-    for c in Cliente.query.filter_by(whatsapp=whatsapp).order_by(Cliente.id).all():
+    for c in (Cliente.query.filter_by(whatsapp=whatsapp).order_by(Cliente.id).all() if whatsapp else []):
         # cadastrado no balcão como "Ana" e agora "Ana Souza": mesmo WhatsApp + mesmo primeiro nome
         if not c.apartamento and chave_nome(c.nome).split(' ')[0] == primeiro:
             c.bloco, c.apartamento = bloco, apto

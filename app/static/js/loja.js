@@ -39,76 +39,7 @@
         }
     }
 
-    // ---------- modo "montando combo": só os sabores do combo + barra de progresso
-    let comboAtivo = null;
     const reaisCurto = v => (Math.round(v * 100) % 100 === 0 ? String(Math.round(v)) : reais(v));
-
-    function montarCombo(id) {
-        const c = COMBOS.find(x => String(x.id) === String(id));
-        if (!c) return;
-        rastro('clique', 'Montar combo: ' + c.nome);
-        comboAtivo = c;
-        document.querySelectorAll('.chip').forEach(x => x.classList.remove('ativo'));
-        document.querySelectorAll('.produto').forEach(p => { p.hidden = !p.dataset.combos.split(' ').includes(String(c.id)); });
-        desenhar();
-        const barra = $('#modo-combo');
-        barra.scrollIntoView({behavior: 'smooth', block: 'start'});
-    }
-
-    function sairDoCombo() {
-        comboAtivo = null;
-        document.querySelectorAll('.chip').forEach(x => x.classList.toggle('ativo', !x.dataset.cat));
-        document.querySelectorAll('.produto').forEach(p => { p.hidden = false; });
-        desenhar();
-    }
-
-    // progresso de cada combo: quantos combos fechados + quantos sabores já escolhidos para o próximo
-    function progresso(c, r) {
-        const fechados = r.grupos.filter(g => g.combo.id === c.id).length;
-        const parcial = c.produtos.reduce((s, id) => s + (r.resto[id] || 0), 0) % c.quantidade;
-        return {fechados, parcial};
-    }
-
-    function textoProgresso(c, p) {
-        if (c.promocao) return p.fechados ? `✓ ${p.fechados > 1 ? p.fechados + ' unidades' : 'No carrinho'} com desconto` : 'Preço promocional';
-        if (p.parcial) {
-            const falta = c.quantidade - p.parcial;
-            return `${p.parcial} de ${c.quantidade} escolhido${p.parcial > 1 ? 's' : ''} · falta${falta > 1 ? 'm' : ''} ${falta}`
-                + (p.fechados ? ` (${p.fechados} combo${p.fechados > 1 ? 's' : ''} pronto${p.fechados > 1 ? 's' : ''})` : '');
-        }
-        if (p.fechados) return `✓ ${p.fechados > 1 ? p.fechados + ' combos prontos' : 'Combo pronto'} no carrinho`;
-        return `Escolha ${c.quantidade} sabores`;
-    }
-
-    function desenharPromos(r) {
-        COMBOS.forEach(c => {
-            const card = document.querySelector(`.promo[data-combo="${c.id}"]`);
-            if (!card) return;
-            const p = progresso(c, r);
-            const box = card.querySelector('.promo-progresso');
-            const ativo = p.fechados || p.parcial;
-            box.hidden = !ativo;
-            card.classList.toggle('pronto', !!p.fechados && !p.parcial);
-            card.classList.toggle('ativo', comboAtivo && comboAtivo.id === c.id);
-            if (ativo) {
-                box.querySelector('.progresso span').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : 100}%`;
-                box.querySelector('small').textContent = textoProgresso(c, p);
-            }
-            card.querySelector('.promo-botao').textContent = c.promocao ? (p.fechados ? '✓ No carrinho' : 'Ver oferta')
-                : (p.fechados && !p.parcial ? 'Montar outro' : (p.parcial ? 'Continuar' : 'Montar combo'));
-        });
-        const barra = $('#modo-combo');
-        if (!barra) return;
-        barra.hidden = !comboAtivo;
-        if (comboAtivo) {
-            const c = comboAtivo, p = progresso(c, r);
-            $('#modo-combo-titulo').textContent = c.rotulo || c.nome;
-            $('#modo-combo-status').textContent = `${oferta(c)} · ${textoProgresso(c, p)}`;
-            $('#modo-combo-barra').style.width = `${p.parcial ? p.parcial / c.quantidade * 100 : (p.fechados ? 100 : 0)}%`;
-            barra.classList.toggle('pronto', !!p.fechados && !p.parcial);
-        }
-    }
-
     const oferta = c => (c.promocao ? `por R$ ${reaisCurto(c.preco)}` : `${c.quantidade} por R$ ${reaisCurto(c.preco)}`);
 
     // combos "leve N por R$ X" (mesma regra do servidor: static/js/combos.js)
@@ -145,7 +76,6 @@
         const qtd = ids.reduce((s, id) => s + carrinho[id], 0);
         const r = combos();
         desenharCombos(r);
-        desenharPromos(r);
         const total = ids.reduce((s, id) => s + carrinho[id] * produtos[id].preco, 0)
             - r.grupos.reduce((s, g) => s + g.economia, 0);
         $('#barra').hidden = !qtd;
@@ -183,13 +113,10 @@
         }
         if (b.classList.contains('chip')) {
             rastro('categoria', b.dataset.cat || 'Tudo');
-            comboAtivo = null;
             document.querySelectorAll('.chip').forEach(c => c.classList.toggle('ativo', c === b));
             document.querySelectorAll('.produto').forEach(p => { p.hidden = !!b.dataset.cat && p.dataset.cat !== b.dataset.cat; });
             desenhar();
         }
-        if (b.classList.contains('promo-botao')) montarCombo(b.dataset.combo);
-        if (b.id === 'modo-combo-sair') sairDoCombo();
     });
 
     const dialogo = $('#carrinho');
@@ -201,11 +128,10 @@
     // dados do cliente lembrados neste aparelho
     const form = $('#form-pedido');
     const cliente = ler('loja-cliente', {});
-    ['nome', 'whatsapp', 'bloco', 'apartamento'].forEach(c => { if (cliente[c]) form.elements[c].value = cliente[c]; });
-    if (cliente.entrega && !cliente.apartamento) {          // guardado antes da separação: "Bloco 3, apto 42"
-        const n = cliente.entrega.match(/[0-9]+[a-z]?/gi) || [];
-        if (n.length === 2) { form.elements.bloco.value = n[0]; form.elements.apartamento.value = n[1]; }
-    }
+    if (cliente.nome) form.elements.nome.value = cliente.nome;
+    // guardado pela versão anterior do site: bloco/apto separados ou o texto "Bloco 3, apto 42"
+    const endereco = cliente.endereco || (cliente.bloco && cliente.apartamento ? `Bloco ${cliente.bloco}, ap ${cliente.apartamento}` : cliente.entrega);
+    if (endereco) form.elements.endereco.value = endereco;
     if (cliente.pagamento) {
         const r = form.querySelector(`input[name="pagamento"][value="${CSS.escape(cliente.pagamento)}"]`);
         if (r) r.checked = true;
@@ -217,18 +143,14 @@
         ev.preventDefault();
         const f = form.elements;
         const dados = {
-            nome: f.nome.value.trim(), whatsapp: f.whatsapp.value.trim(),
-            bloco: f.bloco.value.trim(), apartamento: f.apartamento.value.trim(),
+            nome: f.nome.value.trim(), endereco: f.endereco.value.trim(),
             pagamento: (form.querySelector('input[name="pagamento"]:checked') || {}).value || '',
-            observacao: f.observacao.value.trim(), site: f.site.value,
+            site: f.site.value,
             itens: Object.entries(carrinho).map(([id, qtd]) => ({id: +id, qtd})),
         };
         if (dados.nome.length < 2) return erro('Informe seu nome.');
-        if (!/^\d{10,11}$/.test(dados.whatsapp.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''))) return erro('Informe o WhatsApp com DDD.');
-        if (!dados.bloco) return erro('Informe o bloco.');
-        if (!dados.apartamento) return erro('Informe o apartamento.');
-        guardar('loja-cliente', {nome: dados.nome, whatsapp: dados.whatsapp, bloco: dados.bloco, apartamento: dados.apartamento,
-                                 pagamento: dados.pagamento});
+        if (dados.endereco.length < 3) return erro('Informe o endereço de entrega.');
+        guardar('loja-cliente', {nome: dados.nome, endereco: dados.endereco, pagamento: dados.pagamento});
 
         const botao = $('#enviar');
         botao.disabled = true;

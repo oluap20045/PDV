@@ -24,7 +24,9 @@ from app.combos import agrupar, aplicar as aplicar_combos, combo_dict, combos_va
 bp = Blueprint('loja', __name__, url_prefix='/loja')
 bp_admin = Blueprint('loja_admin', __name__, url_prefix='/loja-admin')
 
-PAGAMENTOS = ['Pix', 'Dinheiro na entrega', 'Cartão na entrega']
+PAGAMENTOS = ['Pix', 'Dinheiro', 'Cartão']          # sempre na entrega (o pedido guarda 'Pix na entrega' etc.)
+# endereço do condomínio digitado num campo só: "Bloco 3, ap 42", "bl 3 apto 42", "3/42"
+RE_BLOCO_APTO = re.compile(r'^\s*(?:bloco|bl|b)?\.?\s*([0-9]{1,2}[a-z]?|[a-z])\s*[,/\-]?\s*(?:apartamento|apto|apt|ap)?\.?\s*([0-9]{1,4}[a-z]?)\s*$', re.I)
 STATUS_CLIENTE = {'aberto': 'Recebido — em preparação', 'entregue': 'Entregue', 'cancelado': 'Cancelado'}
 MAX_POR_ITEM = 30
 MAX_ITENS = 40
@@ -124,7 +126,7 @@ def index():
         return render_template('loja/fechada.html', empresa=emp, proxima=_quando(proxima)), 503
     itens = _vitrine()
     categorias = list(dict.fromkeys(i['categoria'] for i in itens))
-    pagamentos = [p for p in PAGAMENTOS if p != 'Pix' or _pix_ok(emp)]
+    pagamentos = PAGAMENTOS
     na_vitrine = {i['id'] for i in itens}
     por_id = {i['id']: i for i in itens}
     # só mostra o combo se o estoque livre (já descontadas as reservas) der para fechar pelo menos 1
@@ -171,24 +173,21 @@ def fazer_pedido():
         return jsonify(erro='Muitos pedidos seguidos deste aparelho. Espere alguns minutos ou chame no WhatsApp.'), 429
 
     nome = re.sub(r'\s+', ' ', str(dados.get('nome') or '')).strip()[:150]
-    whats = re.sub(r'\D', '', str(dados.get('whatsapp') or ''))
-    if whats.startswith('55') and len(whats) in (12, 13):
-        whats = whats[2:]
     from app.sorteios import achar_ou_criar_cliente, chave_nome, limpar_apto, limpar_bloco
-    bloco, apto = limpar_bloco(dados.get('bloco')), limpar_apto(dados.get('apartamento'))
-    # página antiga ainda aberta no celular (antes de separar bloco e apto) manda o texto livre
-    entrega = f'Bloco {bloco}, apto {apto}' if bloco and apto else \
-        re.sub(r'\s+', ' ', str(dados.get('entrega') or '')).strip()[:120]
-    pagamento = str(dados.get('pagamento') or '')
-    obs = re.sub(r'\s+', ' ', str(dados.get('observacao') or '')).strip()[:255]
+    endereco = re.sub(r'\s+', ' ', str(dados.get('endereco') or dados.get('entrega') or '')).strip()[:120]
+    if not endereco and dados.get('bloco') and dados.get('apartamento'):        # página antiga aberta no celular
+        endereco = f"Bloco {dados['bloco']}, ap {dados['apartamento']}"
+    m = RE_BLOCO_APTO.match(endereco)
+    bloco, apto = (limpar_bloco(m.group(1)), limpar_apto(m.group(2))) if m else ('', '')
+    entrega = f'Bloco {bloco}, apto {apto}' if bloco and apto else endereco
+    pagamento = str(dados.get('pagamento') or '').replace(' na entrega', '')
     if len(nome) < 2:
         return jsonify(erro='Informe seu nome.'), 400
-    if len(whats) not in (10, 11):
-        return jsonify(erro='Informe o WhatsApp com DDD.'), 400
-    if not entrega:
-        return jsonify(erro='Informe o bloco e o apartamento.'), 400
-    if pagamento not in PAGAMENTOS or (pagamento == 'Pix' and not _pix_ok(emp)):
+    if len(endereco) < 3:
+        return jsonify(erro='Informe o endereço de entrega.'), 400
+    if pagamento not in PAGAMENTOS:
         return jsonify(erro='Escolha a forma de pagamento.'), 400
+    pagamento += ' na entrega'
 
     pedidos_itens = {}
     for it in (dados.get('itens') or [])[:MAX_ITENS]:
@@ -217,20 +216,22 @@ def fazer_pedido():
         return jsonify(erro=f'Alguns itens acabaram de ser vendidos: {nomes}. Ajustei seu carrinho.', faltou=faltou), 409
 
     if bloco and apto:
-        # mesma regra do sorteio: nome + bloco + apto (ou o WhatsApp de quem pediu antes sem apto) = mesmo cliente
-        cliente = achar_ou_criar_cliente(nome, whats, bloco, apto, origem='loja')
+        # mesma regra do sorteio: nome + bloco + apto = mesmo cliente
+        cliente = achar_ou_criar_cliente(nome, '', bloco, apto, origem='loja')
     else:
-        cliente = Cliente.query.filter_by(whatsapp=whats).order_by(Cliente.id).first()
+        # família / outro endereço: mesmo nome (sem acento/maiúscula) = mesmo cliente
+        chave = chave_nome(nome)
+        cliente = next((c for c in Cliente.query.filter(Cliente.padrao.is_(False)).order_by(Cliente.id)
+                        if chave_nome(c.nome) == chave), None)
         if cliente is None:
-            cliente = Cliente(nome=nome, whatsapp=whats, origem='loja', criado_em=datetime.now())
+            cliente = Cliente(nome=nome, origem='loja', criado_em=datetime.now())
             db.session.add(cliente)
             db.session.flush()
 
     pedido = Pedido(cliente_id=cliente.id, criado_em=agora(), origem='loja', codigo=secrets.token_urlsafe(9),
                     entrega=entrega, pagamento=pagamento,
                     # cliente já cadastrado com outro nome (ex.: alguém da mesma casa): guarda o nome digitado
-                    observacao=' · '.join(filter(None, [f'Nome no pedido: {nome}' if chave_nome(cliente.nome) != chave_nome(nome) else '',
-                                                        obs]))[:255] or None)
+                    observacao=f'Nome no pedido: {nome}'[:255] if chave_nome(cliente.nome) != chave_nome(nome) else None)
     # combos ("4 por 12") entram sozinhos; cada unidade continua sendo do seu produto
     grupos, resto = aplicar_combos([(pid, q, round(produtos[pid].preco, 2)) for pid, q in pedidos_itens.items()],
                                    [combo_dict(c) for c in combos_validos('loja')])
