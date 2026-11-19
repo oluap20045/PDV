@@ -26,7 +26,10 @@ bp_admin = Blueprint('loja_admin', __name__, url_prefix='/loja-admin')
 
 PAGAMENTOS = ['Pix', 'Dinheiro', 'Cartão']          # sempre na entrega (o pedido guarda 'Pix na entrega' etc.)
 # endereço do condomínio digitado num campo só: "Bloco 3, ap 42", "bl 3 apto 42", "3/42"
-RE_BLOCO_APTO = re.compile(r'^\s*(?:bloco|bl|b)?\.?\s*([0-9]{1,2}[a-z]?|[a-z])\s*[,/\-]?\s*(?:apartamento|apto|apt|ap)?\.?\s*([0-9]{1,4}[a-z]?)\s*$', re.I)
+# bloco e apto precisam de algo entre eles (espaço, vírgula, 'ap'...): '268' sozinho é ambíguo (2/68? 26/8?)
+RE_BLOCO_APTO = re.compile(r'^\s*(?:bloco|bl|b)?\.?\s*([0-9]{1,2}[a-z]?|[a-z])'
+                           r'(?:\s*[,/\-]?\s*(?:apartamento|apto|apt|ap)\.?\s*|\s*[,/\-]\s*|\s+|(?<=[a-z]))'
+                           r'([0-9]{1,4}[a-z]?)\s*$', re.I)
 STATUS_CLIENTE = {'aberto': 'Recebido — em preparação', 'entregue': 'Entregue', 'cancelado': 'Cancelado'}
 MAX_POR_ITEM = 30
 MAX_ITENS = 40
@@ -235,13 +238,22 @@ def fazer_pedido():
         nomes = ', '.join(f"{f['nome']} (tem {f['disponivel']})" for f in faltou)
         return jsonify(erro=f'Alguns itens acabaram de ser vendidos: {nomes}. Ajustei seu carrinho.', faltou=faltou), 409
 
-    if bloco and apto:
+    # 1º o celular: quem já tem esse número cadastrado (sorteio, balcão, pedido antigo) é a mesma pessoa,
+    # mesmo que agora digite o nome curto ou o endereço de outro jeito
+    cliente = None
+    if whats:
+        mesmos = Cliente.query.filter(Cliente.whatsapp == whats, Cliente.padrao.is_(False)).order_by(Cliente.id).all()
+        cliente = next((c for c in mesmos if bloco and c.bloco == bloco and c.apartamento == apto), None) \
+            or (mesmos[0] if mesmos else None)
+        if cliente is not None and bloco and apto and not cliente.apartamento:
+            cliente.bloco, cliente.apartamento = bloco, apto
+    if cliente is None and bloco and apto:
         # mesma regra do sorteio: nome + bloco + apto (ou o celular de quem pediu antes sem apto) = mesmo cliente
         cliente = achar_ou_criar_cliente(nome, whats, bloco, apto, origem='loja')
-    else:
-        # família / outro endereço: mesmo celular = mesmo cliente; senão, mesmo nome ainda sem celular
+    elif cliente is None:
+        # família / outro endereço: mesmo nome ainda sem celular
         chave = chave_nome(nome)
-        cliente = (Cliente.query.filter_by(whatsapp=whats).order_by(Cliente.id).first() if whats else None) or next(
+        cliente = next(
             (c for c in Cliente.query.filter(Cliente.padrao.is_(False), db.or_(Cliente.whatsapp.is_(None), Cliente.whatsapp == ''))
              .order_by(Cliente.id) if chave_nome(c.nome) == chave), None)
         if cliente is not None and whats and not cliente.whatsapp:
@@ -254,7 +266,9 @@ def fazer_pedido():
     pedido = Pedido(cliente_id=cliente.id, criado_em=agora(), origem='loja', codigo=secrets.token_urlsafe(9),
                     entrega=entrega, pagamento=pagamento,
                     # cliente já cadastrado com outro nome (ex.: alguém da mesma casa): guarda o nome digitado
-                    observacao=f'Nome no pedido: {nome}'[:255] if chave_nome(cliente.nome) != chave_nome(nome) else None)
+                    # ("Kethleen" para "Kethleen Kristine Trapp" é a mesma pessoa: não anota)
+                    observacao=None if (chave_nome(cliente.nome) + ' ').startswith(chave_nome(nome) + ' ')
+                    else f'Nome no pedido: {nome}'[:255])
     # combos ("4 por 12") entram sozinhos; cada unidade continua sendo do seu produto
     grupos, resto = aplicar_combos([(pid, q, round(produtos[pid].preco, 2)) for pid, q in pedidos_itens.items()],
                                    [combo_dict(c) for c in combos_validos('loja')])

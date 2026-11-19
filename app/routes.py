@@ -294,7 +294,8 @@ def venda_pdv():
                 combo_id = int(partes[3]) if len(partes) > 4 and partes[3] else None
                 grupo = int(partes[4]) if combo_id else None
                 linhas.append((produto, quantidade_vendida, preco, combo_id, grupo))
-            conferir_grupos(linhas, 'pdv')
+            # pedido da loja: o combo dela vale na entrega mesmo que não esteja ligado no PDV
+            conferir_grupos(linhas, 'pdv', {it.combo_id for it in pedido.itens if it.combo_id} if pedido else ())
             precisa = {}
             for produto, q, _, _, _ in linhas:
                 precisa[produto] = precisa.get(produto, 0) + q
@@ -365,9 +366,15 @@ def venda_pdv():
         pedido_js = {'id': pedido.id, 'itens': [{'id': str(it.produto_id), 'qtd': it.quantidade,
                                                  'preco': None if it.combo_id else it.preco_unitario}
                                                 for it in pedido.itens]}
+    combos_pdv = [c for c in combos_validos('pdv') if tem_estoque(c, lambda p: p.quantidade)]
+    if pedido is not None:
+        # combo só da loja (ex.: "Trufa Artesanal 3 por 14") também entra, senão o pedido chega sem o desconto
+        usados = {it.combo_id for it in pedido.itens if it.combo_id}
+        combos_pdv += [c for c in combos_validos('loja') if c.id in usados and c not in combos_pdv]
+    combos_pdv = [combo_dict(c) for c in combos_pdv]
     return render_template('venda.html', produtos=produtos_disponiveis, ultima=ultima, pedido=pedido, pedido_js=pedido_js,
                            # combo sem estoque para fechar nem aparece (volta sozinho quando o estoque chega)
-                           combos=[combo_dict(c) for c in combos_validos('pdv') if tem_estoque(c, lambda p: p.quantidade)],
+                           combos=combos_pdv,
                            clientes=clientes, cliente_selecionado=selecionado,
                            formas_pagamento=FORMAS_PAGAMENTO, forma_a_prazo=FORMA_A_PRAZO,
                            formas_cartao=FORMAS_CARTAO, forma_credito=FORMA_CREDITO,

@@ -103,10 +103,13 @@ def aplicar(itens, combos):
     return grupos, {pid: q for pid, q in resto.items() if q}
 
 
-def conferir_grupos(linhas, onde):
+def conferir_grupos(linhas, onde, extras=()):
     """Confere os combos que vieram prontos do PDV. linhas: [(produto, qtd, preço, combo_id, grupo)].
+    extras: ids de combos da loja que também valem (entrega de pedido feito na loja).
     Levanta ValueError com a explicação se algum combo não fecha."""
     validos = {c.id: c for c in combos_validos(onde)}
+    if extras:
+        validos.update({c.id: c for c in combos_validos('loja') if c.id in extras})
     grupos = {}
     for prod, q, preco, combo_id, grupo in linhas:
         if combo_id is None:
