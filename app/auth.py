@@ -2,6 +2,9 @@
 import re
 from datetime import datetime
 
+from urllib.parse import urlsplit
+
+from werkzeug.routing import RequestRedirect
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 
@@ -49,6 +52,11 @@ def exigir_login():
     if request.host.split(':')[0].lower() in current_app.config.get('LOJA_HOST', set()):
         if request.path in ('/', ''):
             return redirect('/loja/')
+        # "/loja/sorteio" sem a barra final: o Flask só redireciona para "/loja/sorteio/" (que passa por aqui de novo)
+        # (só o caminho: atrás do Cloudflare o Flask montaria "http://...")
+        if isinstance(request.routing_exception, RequestRedirect):
+            destino = urlsplit(request.routing_exception.new_url)
+            return redirect(destino.path + (f'?{destino.query}' if destino.query else ''), 308)
         return None if publico else abort(404)
     if publico or request.endpoint in LIVRES or current_user.is_authenticated:
         return None
