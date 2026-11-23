@@ -9,11 +9,14 @@
     {% if linhas %}
     <p class="small text-muted">Falta = o que os pedidos em aberto pedem além do estoque. Já desconta o que está em ordens abertas.
         Produtos abaixo do <strong>estoque mínimo</strong> aparecem como sugestão, desmarcados.</p>
+    {% else %}
+    <p class="text-muted">Nada faltando: o estoque cobre todos os pedidos em aberto. 🎉 Se quiser comprar mesmo assim, adicione os produtos abaixo.</p>
+    {% endif %}
     <form method="POST" action="{{ url_for('pedidos.gerar_ordem') }}" id="form-gerar">
         <div class="table-responsive">
         <table class="table table-sm align-middle">
             <thead><tr><th></th><th>Produto</th><th>Por quê</th><th class="text-end">Falta</th><th class="text-end">Já encomendado</th><th style="width: 100px">Comprar</th></tr></thead>
-            <tbody>
+            <tbody id="linhas-oc">
             {% for l in linhas %}
                 <tr class="{{ 'text-muted' if l.comprar == 0 }}">
                     <td><input class="form-check-input" type="checkbox" name="marcado" value="{{ l.produto.id }}" {{ 'checked' if l.marcado }}
@@ -33,6 +36,29 @@
             </tbody>
         </table>
         </div>
+        <div class="card bg-light border-0 mb-3"><div class="card-body py-2">
+            <div class="small fw-semibold mb-1">➕ Adicionar outro produto</div>
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4">
+                    <input type="search" id="oc-busca" class="form-control form-control-sm" placeholder="Buscar por nome ou código" aria-label="Buscar produto">
+                </div>
+                <div class="col-12 col-md-5">
+                    <select id="oc-produto" class="form-select form-select-sm" aria-label="Produto">
+                        <option value="">Escolha o produto…</option>
+                        {% for p in produtos %}
+                        <option value="{{ p.id }}" data-nome="{{ p.nome }}" data-codigo="{{ p.codigo_fornecedor or '' }}" data-estoque="{{ p.quantidade }}"
+                                data-busca="{{ (p.nome ~ ' ' ~ (p.codigo_fornecedor or '') ~ ' ' ~ (p.codigo_barras or ''))|lower }}">{{ p.nome }} (estoque {{ p.quantidade }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-5 col-md-1">
+                    <input type="number" id="oc-qtd" class="form-control form-control-sm" min="1" value="1" aria-label="Quantidade">
+                </div>
+                <div class="col-7 col-md-2">
+                    <button type="button" id="oc-adicionar" class="btn btn-outline-primary btn-sm w-100">Adicionar</button>
+                </div>
+            </div>
+        </div></div>
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-4">
                 <label class="form-label small mb-1" for="fornecedor_id">Fornecedor</label>
@@ -50,9 +76,6 @@
             </div>
         </div>
     </form>
-    {% else %}
-    <p class="text-muted">Nada faltando: o estoque cobre todos os pedidos em aberto. 🎉</p>
-    {% endif %}
 
     <h5 class="mt-4">Ordens em aberto</h5>
     {% for o in abertas %}
@@ -129,6 +152,49 @@
 
 {% block scripts %}
 <script>
+// ---- adicionar qualquer produto à ordem (além dos sugeridos)
+(() => {
+    const busca = document.getElementById('oc-busca'), sel = document.getElementById('oc-produto');
+    const qtd = document.getElementById('oc-qtd'), tbody = document.getElementById('linhas-oc');
+    busca.addEventListener('input', () => {
+        const t = busca.value.trim().toLowerCase();
+        let primeiro = null;
+        for (const o of sel.options) {
+            if (!o.value) continue;
+            o.hidden = t && !o.dataset.busca.includes(t);
+            if (!o.hidden && !primeiro) primeiro = o;
+        }
+        if (t && primeiro) primeiro.selected = true;
+    });
+    busca.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); qtd.select(); } });
+    qtd.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); adicionar(); } });
+    document.getElementById('oc-adicionar').addEventListener('click', adicionar);
+    function adicionar() {
+        const o = sel.selectedOptions[0];
+        if (!o || !o.value) { sel.focus(); return; }
+        const n = Math.max(1, parseInt(qtd.value) || 1);
+        const existente = tbody.querySelector(`input[name="qtd_${o.value}"]`);
+        if (existente) {          // já está na lista (sugerido ou adicionado): marca e usa a quantidade digitada
+            existente.value = n;
+            existente.closest('tr').querySelector('input[name=marcado]').checked = true;
+            existente.closest('tr').classList.remove('text-muted');
+        } else {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><input class="form-check-input" type="checkbox" name="marcado" checked></td>
+                <td><span class="nome"></span><div class="small text-muted"></div></td>
+                <td class="small">adicionado</td><td class="text-end">—</td><td class="text-end">—</td>
+                <td><input type="number" class="form-control form-control-sm" min="0"></td>`;
+            tr.querySelector('input[name=marcado]').value = o.value;
+            tr.querySelector('.nome').textContent = o.dataset.nome;
+            tr.querySelector('.small.text-muted').textContent = (o.dataset.codigo ? `cód. ${o.dataset.codigo} · ` : '') + `estoque ${o.dataset.estoque}`;
+            const q = tr.querySelector('input[type=number]');
+            q.name = `qtd_${o.value}`; q.value = n;
+            tbody.appendChild(tr);
+        }
+        busca.value = ''; busca.dispatchEvent(new Event('input')); sel.value = ''; qtd.value = 1; busca.focus();
+    }
+})();
+
 document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
     const texto = document.getElementById(b.dataset.copiar).value.trim();
     try { await navigator.clipboard.writeText(texto); b.textContent = '✓ Copiado'; }

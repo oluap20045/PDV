@@ -245,13 +245,15 @@ def ordens_compra():
     fechadas = (OrdemCompra.query.filter(OrdemCompra.status != 'aberta')
                 .order_by(OrdemCompra.criado_em.desc()).limit(20).all())
     return render_template('ordens_compra.html', linhas=faltas(), abertas=abertas, fechadas=fechadas,
-                           fornecedores=Fornecedor.query.order_by(Fornecedor.nome).all())
+                           fornecedores=Fornecedor.query.order_by(Fornecedor.nome).all(),
+                           # qualquer produto pode entrar na ordem, não só os sugeridos
+                           produtos=Produto.query.order_by(Produto.nome).all())
 
 
 @bp.route('/ordens-compra/gerar', methods=['POST'])
 def gerar_ordem():
     itens = []
-    for pid in request.form.getlist('marcado'):
+    for pid in dict.fromkeys(request.form.getlist('marcado')):
         prod = db.session.get(Produto, int(pid))
         q = request.form.get(f'qtd_{pid}', type=int) or 0
         if prod and q > 0:
