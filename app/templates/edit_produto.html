@@ -14,6 +14,11 @@
             </div>
         </div>
         <div class="mb-3">
+            <label for="codigo_fornecedor" class="form-label">Código do produto <small class="text-muted">(catálogo, ex.: Cacau Show)</small></label>
+            <input type="text" name="codigo_fornecedor" id="codigo_fornecedor" class="form-control" maxlength="20"
+                   value="{{ produto.codigo_fornecedor or '' }}" autocomplete="off">
+        </div>
+        <div class="mb-3">
             <label for="nome" class="form-label">Nome do Produto</label>
             <input type="text" name="nome" id="nome" class="form-control" value="{{ produto.nome }}" required>
         </div>

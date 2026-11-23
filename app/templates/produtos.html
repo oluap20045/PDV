@@ -12,7 +12,8 @@
                             onclick="PdvScanner.abrir({onLeitura: c => { document.getElementById('codigo_barras').value = c; document.getElementsByName('nome')[0].focus(); }})">📷 Câmera</button>
                 </div>
             </div>
-            <div class="col-12 col-md-8"><input type="text" name="nome" class="form-control" placeholder="Nome do Produto" required></div>
+            <div class="col-12 col-md-2"><input type="text" name="codigo_fornecedor" class="form-control" placeholder="Código do produto" maxlength="20" autocomplete="off" title="Código do catálogo (ex.: código Cacau Show)"></div>
+            <div class="col-12 col-md-6"><input type="text" name="nome" class="form-control" placeholder="Nome do Produto" required></div>
             <div class="col-6 col-md-2"><input type="number" step="0.01" name="custo" id="custo" class="form-control" placeholder="Custo (R$)" required></div>
             <div class="col-6 col-md-2"><input type="number" step="0.01" name="preco" id="preco" class="form-control" placeholder="Preço Venda (R$)" required></div>
             <div class="col-6 col-md-3"><input type="number" name="quantidade" class="form-control" placeholder="Quantidade em Estoque" required></div>

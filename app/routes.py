@@ -141,6 +141,17 @@ def _codigo_barras_do_form():
     codigo = (request.form.get('codigo_barras') or '').strip()
     return codigo or None
 
+
+def _codigo_fornecedor_do_form(produto_id=None):
+    """Código do produto no catálogo (ex.: Cacau Show). Vazio vira None; devolve (codigo, outro_produto_com_ele)."""
+    codigo = (request.form.get('codigo_fornecedor') or '').strip()[:20] or None
+    if not codigo:
+        return None, None
+    q = Produto.query.filter(Produto.codigo_fornecedor == codigo)
+    if produto_id is not None:
+        q = q.filter(Produto.id != produto_id)
+    return codigo, q.first()
+
 @bp.route('/')
 def index():
 # ALTERAÇÃO FIM
@@ -165,9 +176,14 @@ def produtos():
         if codigo_barras and Produto.query.filter_by(codigo_barras=codigo_barras).first():
             flash(f'O código de barras {codigo_barras} já está cadastrado em outro produto.', 'danger')
             return redirect(url_for('main.produtos'))
+        codigo_fornecedor, outro = _codigo_fornecedor_do_form()
+        if outro:
+            flash(f'O código {codigo_fornecedor} já está cadastrado no produto "{outro.nome}".', 'danger')
+            return redirect(url_for('main.produtos'))
 
         novo_produto = Produto(nome=nome, preco=preco, custo=custo, quantidade=quantidade,
-                               estoque_minimo=estoque_minimo, codigo_barras=codigo_barras)
+                               estoque_minimo=estoque_minimo, codigo_barras=codigo_barras,
+                               codigo_fornecedor=codigo_fornecedor)
         db.session.add(novo_produto)
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -455,7 +471,12 @@ def editar_produto(id):
                                                   Produto.id != produto.id).first():
             flash(f'O código de barras {codigo_barras} já está cadastrado em outro produto.', 'danger')
             return redirect(url_for('main.editar_produto', id=produto.id))
+        codigo_fornecedor, outro = _codigo_fornecedor_do_form(produto.id)
+        if outro:
+            flash(f'O código {codigo_fornecedor} já está cadastrado no produto "{outro.nome}".', 'danger')
+            return redirect(url_for('main.editar_produto', id=produto.id))
         produto.codigo_barras = codigo_barras
+        produto.codigo_fornecedor = codigo_fornecedor
         db.session.commit()
         flash('Produto atualizado com sucesso!', 'success')
         return redirect(url_for('main.produtos'))
