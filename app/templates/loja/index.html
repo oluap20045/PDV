@@ -21,6 +21,7 @@
         </div>
         {% endif %}
         <div class="hero-info">
+            <span class="pilula pilula-local"><span aria-hidden="true">📍</span> Entregas no <strong>Residencial Graciosa Clube</strong></span>
             <details class="pilula pilula-horario">
                 <summary><span aria-hidden="true">🛵</span> {% if hoje %}Entregas hoje das <strong>{{ hoje }}</strong>{% else %}Ver horários de entrega{% endif %}</summary>
                 {{ tabela_horarios(empresa, 'Horários da semana') }}
