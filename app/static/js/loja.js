@@ -109,6 +109,30 @@
         document.querySelectorAll('.produto').forEach(p => { p.hidden = !mostra(p); });
     }
 
+    // ordenação da grade (preço já com a promoção; nome em ordem alfabética do português)
+    const ORDENS = {
+        menor: (a, b) => a.dataset.preco - b.dataset.preco || a.dataset.ordem - b.dataset.ordem,
+        maior: (a, b) => b.dataset.preco - a.dataset.preco || a.dataset.ordem - b.dataset.ordem,
+        nome: (a, b) => a.querySelector('h3').textContent.localeCompare(b.querySelector('h3').textContent, 'pt-BR'),
+    };
+    function ordenar(modo) {
+        const grade = $('#grade');
+        if (!grade) return;
+        const cards = [...grade.querySelectorAll('.produto')];
+        cards.sort(ORDENS[modo] || ((a, b) => a.dataset.ordem - b.dataset.ordem));
+        grade.append(...cards);
+    }
+    const seletor = $('#ordenar');
+    if (seletor) {
+        try { const salvo = localStorage.getItem('loja-ordem'); if (salvo && ORDENS[salvo]) seletor.value = salvo; } catch (e) { /* sem storage */ }
+        if (seletor.value) ordenar(seletor.value);
+        seletor.addEventListener('change', () => {
+            ordenar(seletor.value);
+            try { localStorage.setItem('loja-ordem', seletor.value); } catch (e) { /* sem storage */ }
+            rastro('clique', 'Ordenar: ' + seletor.options[seletor.selectedIndex].text);
+        });
+    }
+
     document.addEventListener('click', ev => {
         const b = ev.target.closest('button');
         if (!b) return;

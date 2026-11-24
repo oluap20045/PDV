@@ -75,8 +75,18 @@
         </section>
         {% endif %}
         <div class="secao-cabeca secao-produtos">
-            <h2>Tudo a pronta entrega</h2>
-            <p>{{ itens|length }} produto{{ 's' if itens|length != 1 }} em estoque agora</p>
+            <div>
+                <h2>Tudo a pronta entrega</h2>
+                <p>{{ itens|length }} produto{{ 's' if itens|length != 1 }} em estoque agora</p>
+            </div>
+            <label class="ordenar">Ordenar
+                <select id="ordenar">
+                    <option value="">Categorias</option>
+                    <option value="menor">Menor preço</option>
+                    <option value="maior">Maior preço</option>
+                    <option value="nome">Nome (A–Z)</option>
+                </select>
+            </label>
         </div>
         {% if categorias|length > 1 %}
         <nav class="categorias" aria-label="Categorias">
@@ -91,7 +101,8 @@
 
         <div class="grade" id="grade">
             {% for i in itens %}
-            <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}">
+            <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}"
+                     data-ordem="{{ loop.index0 }}" data-preco="{{ '%.2f'|format(i.promo or i.preco) }}">
                 <div class="produto-foto">
                     {% if i.promo %}<span class="selo-combo selo-promo">Promoção</span>
                     {% else %}{% for c in combos if c.id in i.combos and not c.promocao %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}{% endif %}
