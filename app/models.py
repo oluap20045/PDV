@@ -42,7 +42,8 @@ class ProdutoFoto(db.Model):
     """Foto do produto para a loja online. Fica no banco (entra no backup diário junto com o resto)."""
     __tablename__ = 'produto_foto'
     produto_id = db.Column(db.Integer, db.ForeignKey('produto.id'), primary_key=True)
-    dados = db.Column(db.LargeBinary(length=4 * 1024 * 1024), nullable=False)   # MEDIUMBLOB no MariaDB
+    # MEDIUMBLOB no MariaDB; "deferred": só vem do banco quando alguém lê .dados (a vitrine só precisa da versão)
+    dados = db.deferred(db.Column(db.LargeBinary(length=4 * 1024 * 1024), nullable=False))
     mime = db.Column(db.String(20), nullable=False)
     atualizado_em = db.Column(db.DateTime, nullable=False, default=datetime.now)
 

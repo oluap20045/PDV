@@ -82,7 +82,8 @@ def nome_vitrine(nome):
 
 def _vitrine():
     livre = estoque_livre()
-    produtos = Produto.query.filter_by(na_loja=True).order_by(Produto.categoria, Produto.nome).all()
+    produtos = (Produto.query.filter_by(na_loja=True).options(db.selectinload(Produto.foto))   # fotos numa consulta só
+                .order_by(Produto.categoria, Produto.nome).all())
     itens = []
     for p in produtos:
         disp = livre(p)
