@@ -106,7 +106,7 @@
                 <div class="produto-foto">
                     {% if i.promo %}<span class="selo-combo selo-promo">Promoção</span>
                     {% else %}{% for c in combos if c.id in i.combos and not c.promocao %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}{% endif %}
-                    {% if i.max <= 3 %}<span class="selo-poucos">{{ 'Última!' if i.max == 1 else 'Só ' ~ i.max }}</span>{% endif %}
+                    {% if i.max == 1 %}<span class="selo-poucos">Última unidade!</span>{% endif %}
                     {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
                     {% else %}<span aria-hidden="true">🍫</span>{% endif %}
                 </div>
