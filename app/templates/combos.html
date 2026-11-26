@@ -42,7 +42,8 @@
             <p class="small mb-3 mt-2" style="color:#bbb">Põe o cadastro a quase preço de custo, no PDV e na loja online, e muda a loja para o
                 tema Black Friday. Preço Black = custo ÷ (1 − margem − maior taxa do cartão{% if black.taxa %}: <strong>{{ '%g'|format(black.taxa) }}%</strong>
                 <span class="opacity-75">({{ black.taxa_desc }})</span>{% endif %}), arredondado para cima nos 10 centavos — qualquer forma de pagamento
-                cobre o custo. Na tabela você <strong>tira produtos</strong> da Black (desmarque) ou põe um <strong>preço manual</strong> (ex.: 0,01 para chamar atenção).
+                cobre o custo. Na tabela você <strong>tira produtos</strong> da Black (desmarque) ou põe um <strong>preço manual</strong> (ex.: 0,01 para chamar atenção). Marque <strong>Isca 🎣</strong> nesses: na loja vai
+                <strong>1 por pedido</strong> e o preço Black só vale <strong>com outro produto no carrinho</strong> (sozinho, sai pelo preço normal).
                 O preço normal fica guardado e volta inteiro ao desligar. <strong>Os outros combos/promoções continuam valendo: pause-os aqui embaixo.</strong></p>
             <form method="POST" action="{{ url_for('combos.black_friday') }}" id="form-black" data-taxa="{{ black.taxa }}"
                   data-ligada="{{ 1 if empresa.black_ativo else 0 }}" onsubmit="return confirm(this.dataset.msg)">
@@ -60,6 +61,7 @@
                 <table class="table table-sm mb-0 small align-middle tabela-black">
                     <thead><tr><th style="width:1%">Entra</th><th>Produto <span class="fw-normal opacity-75">(com estoque)</span></th><th class="text-end">Estoque</th>
                         <th class="text-end">Custo</th><th class="text-end">Normal</th><th class="text-end">Fórmula</th><th class="text-end">Preço manual</th>
+                        <th class="text-center" title="1 por pedido e só sai por esse preço com outro produto no carrinho">Isca 🎣</th>
                         <th class="text-end">Fica</th><th class="text-end">Desconto</th></tr></thead>
                     <tbody>
                     {% for l in black.linhas %}
@@ -73,6 +75,8 @@
                         <td class="text-end"><input type="text" inputmode="decimal" class="form-control form-control-sm manual d-inline-block text-end"
                                    name="man_{{ l.id }}" placeholder="auto" autocomplete="off"
                                    value="{{ ('%.2f'|format(l.manual)).replace('.', ',') if l.manual is not none else '' }}"></td>
+                        <td class="text-center"><input class="form-check-input isca" type="checkbox" name="isca_{{ l.id }}" value="1" {{ 'checked' if l.isca }}
+                                   title="1 por pedido e só sai por esse preço com outro produto no carrinho"></td>
                         <td class="text-end fw-bold preco-black fica">—</td>
                         <td class="text-end pct">—</td>
                     </tr>
@@ -96,7 +100,7 @@
         const num = t => parseFloat(String(t).replace('R$', '').replace(',', '.').trim());
         function calcular() {
             const m = parseFloat(String(margemEl.value).replace(',', '.')) || 0;
-            let entram = 0, manuais = 0;
+            let entram = 0, manuais = 0, iscas = 0;
             form.querySelectorAll('tbody tr').forEach(tr => {
                 const custo = parseFloat(tr.dataset.custo), normal = parseFloat(tr.dataset.normal);
                 const div = 1 - (m + taxa) / 100;
@@ -111,10 +115,12 @@
                 tr.classList.toggle('fora', fica === null);
                 tr.querySelector('.fica').textContent = fica === null ? brl(normal) : brl(fica);
                 tr.querySelector('.pct').textContent = fica === null ? '—' : '−' + Math.floor((1 - fica / normal) * 100) + '%';
-                if (fica !== null) { entram++; if (manOk) manuais++; }
+                const isca = tr.querySelector('.isca');
+                isca.disabled = fica === null;
+                if (fica !== null) { entram++; if (manOk) manuais++; if (isca.checked) iscas++; }
             });
             document.getElementById('black-resumo').textContent =
-                entram + ' com estoque entram' + (manuais ? ' (' + manuais + ' com preço manual)' : '');
+                entram + ' com estoque entram' + (manuais ? ' · ' + manuais + ' com preço manual' : '') + (iscas ? ' · ' + iscas + ' isca(s) 🎣' : '');
             form.dataset.msg = (form.dataset.ligada === '1' ? 'Salvar e recalcular a Black? ' : 'Ligar a Black Friday? ') +
                 entram + ' produto(s) com estoque vão para o preço Black no PDV e na loja.';
         }

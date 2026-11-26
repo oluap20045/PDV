@@ -42,9 +42,15 @@
     const reaisCurto = v => (Math.round(v * 100) % 100 === 0 ? String(Math.round(v)) : reais(v));
     const oferta = c => (c.promocao ? `por R$ ${reaisCurto(c.preco)}` : `${c.quantidade} por R$ ${reaisCurto(c.preco)}`);
 
+    // Black Friday: a "isca" (ex.: R$ 0,01) só vale com outro produto (não isca) no carrinho; sozinha, preço normal
+    // (mesma regra do servidor: loja.preco_no_carrinho)
+    const temOutro = () => Object.keys(carrinho).some(id => !produtos[id].isca);
+    const precoDe = (id, outro) => (produtos[id].isca && !outro ? produtos[id].de : produtos[id].preco);
+
     // combos "leve N por R$ X" (mesma regra do servidor: static/js/combos.js)
     function combos() {
-        const itens = Object.keys(carrinho).map(id => ({id: +id, qtd: carrinho[id], preco: produtos[id].preco}));
+        const outro = temOutro();
+        const itens = Object.keys(carrinho).map(id => ({id: +id, qtd: carrinho[id], preco: precoDe(id, outro)}));
         return window.Combos ? Combos.aplicar(itens, COMBOS) : {grupos: [], resto: {}};
     }
 
@@ -76,7 +82,8 @@
         const qtd = ids.reduce((s, id) => s + carrinho[id], 0);
         const r = combos();
         desenharCombos(r);
-        const total = ids.reduce((s, id) => s + carrinho[id] * produtos[id].preco, 0)
+        const outro = temOutro();
+        const total = ids.reduce((s, id) => s + carrinho[id] * precoDe(id, outro), 0)
             - r.grupos.reduce((s, g) => s + g.economia, 0);
         $('#barra').hidden = !qtd;
         $('#barra-qtd').textContent = qtd;
@@ -87,7 +94,9 @@
         $('#carrinho-itens').innerHTML = ids.length ? ids.map(id => {
             const p = produtos[id];
             return `<div class="linha" data-id="${id}">
-                <div><div class="linha-nome"></div><div class="linha-preco">${carrinho[id]} × R$ ${reais(p.preco)}</div></div>
+                <div><div class="linha-nome"></div><div class="linha-preco">${carrinho[id]} × R$ ${reais(precoDe(id, outro))}</div>
+                    ${p.isca ? `<div class="linha-isca${outro ? ' ok' : ''}">${outro ? `🎣 R$ ${reais(p.preco)} valendo!`
+                        : `🎣 Adicione outro produto para levar por R$ ${reais(p.preco)}`}</div>` : ''}</div>
                 <div class="qtd" data-linha="${id}">
                     <button type="button" class="menos" aria-label="Tirar um">−</button>
                     <span class="num">${carrinho[id]}</span>

@@ -121,7 +121,8 @@
                     <div class="produto-rodape">
                         {% if i.promo %}<span class="preco preco-promo"><s>{{ reais(i.de or i.preco) }}</s> <strong>{{ reais(i.promo) }}</strong></span>
                         {% elif i.de %}<span class="preco preco-promo"><s>{{ reais(i.de) }}</s> <strong>{{ reais(i.preco) }}</strong>
-                            <small class="economia">economize {{ reais(i.de - i.preco) }}</small></span>
+                            <small class="economia">economize {{ reais(i.de - i.preco) }}</small>
+                            {% if i.isca %}<small class="regra-isca">1 por pedido · só levando outro produto junto</small>{% endif %}</span>
                         {% else %}<strong class="preco">R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</strong>{% endif %}
                         <div class="qtd" data-controle="{{ i.id }}">
                             <button type="button" class="adicionar">Adicionar</button>

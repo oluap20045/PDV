@@ -80,6 +80,16 @@ def nome_vitrine(nome):
     return re.sub(r'(\d)\s*(g|kg|ml)\b', r'\1 \2', n, flags=re.I)
 
 
+def eh_isca(p):
+    """Black Friday: produto "isca" (ex.: R$ 0,01) — 1 por pedido e só com outro produto no carrinho."""
+    return bool(p.black_isca and p.preco_normal)
+
+
+def preco_no_carrinho(p, tem_outro):
+    """Preço de tabela que vale no pedido: a isca sozinha (sem outro produto que não seja isca) sai pelo preço normal."""
+    return round(p.preco_normal if eh_isca(p) and not tem_outro else p.preco, 2)
+
+
 def _vitrine():
     livre = estoque_livre()
     produtos = (Produto.query.filter_by(na_loja=True).options(db.selectinload(Produto.foto))   # fotos numa consulta só
@@ -88,7 +98,9 @@ def _vitrine():
     for p in produtos:
         disp = livre(p)
         if disp > 0 and p.preco > 0:
-            itens.append({'id': p.id, 'nome': nome_vitrine(p.nome), 'preco': round(p.preco, 2), 'max': min(disp, MAX_POR_ITEM),
+            isca = eh_isca(p)
+            itens.append({'id': p.id, 'nome': nome_vitrine(p.nome), 'preco': round(p.preco, 2),
+                          'max': min(disp, 1 if isca else MAX_POR_ITEM), 'isca': isca,
                           'categoria': (p.categoria or 'Outros').strip() or 'Outros', 'descricao': p.descricao or '',
                           'foto': url_for('loja.foto', id=p.id, v=p.foto.versao) if p.foto else None,
                           # Black Friday: preço de tabela guardado = "de R$ X por R$ Y" e o % de desconto
@@ -236,8 +248,8 @@ def fazer_pedido():
         p = produtos.get(pid)
         if p is None or not p.na_loja or p.preco <= 0:
             faltou.append({'id': pid, 'nome': 'Produto indisponível', 'disponivel': 0})
-        elif q > min(livre(p), MAX_POR_ITEM):
-            faltou.append({'id': pid, 'nome': p.nome, 'disponivel': min(livre(p), MAX_POR_ITEM)})
+        elif q > min(livre(p), 1 if eh_isca(p) else MAX_POR_ITEM):
+            faltou.append({'id': pid, 'nome': p.nome, 'disponivel': min(livre(p), 1 if eh_isca(p) else MAX_POR_ITEM)})
     if faltou:
         db.session.rollback()
         nomes = ', '.join(f"{f['nome']} (tem {f['disponivel']})" for f in faltou)
@@ -275,14 +287,17 @@ def fazer_pedido():
                     observacao=None if (chave_nome(cliente.nome) + ' ').startswith(chave_nome(nome) + ' ')
                     else f'Nome no pedido: {nome}'[:255])
     # combos ("4 por 12") entram sozinhos; cada unidade continua sendo do seu produto
-    grupos, resto = aplicar_combos([(pid, q, round(produtos[pid].preco, 2)) for pid, q in pedidos_itens.items()],
+    # isca da Black (ex.: R$ 0,01) só vale com outro produto no carrinho; sozinha sai pelo preço normal
+    tem_outro = any(not eh_isca(produtos[pid]) for pid in pedidos_itens)
+    preco_de = {pid: preco_no_carrinho(produtos[pid], tem_outro) for pid in pedidos_itens}
+    grupos, resto = aplicar_combos([(pid, q, preco_de[pid]) for pid, q in pedidos_itens.items()],
                                    [combo_dict(c) for c in combos_validos('loja')])
     for n, g in enumerate(grupos, 1):
         for pid, q, preco in g['linhas']:
             pedido.itens.append(PedidoItem(produto_id=pid, quantidade=q, preco_unitario=preco,
                                            combo_id=g['combo']['id'], combo_grupo=n))
     for pid, q in resto.items():
-        pedido.itens.append(PedidoItem(produto_id=pid, quantidade=q, preco_unitario=round(produtos[pid].preco, 2)))
+        pedido.itens.append(PedidoItem(produto_id=pid, quantidade=q, preco_unitario=preco_de[pid]))
     db.session.add(pedido)
     db.session.commit()
     return jsonify(ok=True, url=url_for('loja.ver_pedido', codigo=pedido.codigo, novo=1))

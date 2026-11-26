@@ -247,7 +247,8 @@ def black_friday():
     if erros:
         flash('Preço manual inválido: ' + '; '.join(erros).replace('.', ','), 'danger')
         return redirect(url_for('combos.lista', margem=f'{margem:g}'))
-    n = black.ligar(margem, escolhas)
+    iscas = {int(pid) for pid in request.form.getlist('ids') if pid.isdigit() and request.form.get(f'isca_{pid}') == '1'}
+    n = black.ligar(margem, escolhas, iscas)
     db.session.commit()
     flash(f'🖤 Black Friday ligada com {margem:g}% de margem: {n} produto(s) com preço Black no PDV e na loja. '
           'Lembre de pausar os outros combos/promoções.', 'success')

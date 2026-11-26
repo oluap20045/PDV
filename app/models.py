@@ -31,6 +31,7 @@ class Produto(db.Model):
     codigo_fornecedor = db.Column(db.String(20), unique=True, nullable=True)   # ex.: código Cacau Show do catálogo
     categoria = db.Column(db.String(60), nullable=True)
     preco_normal = db.Column(db.Float, nullable=True)   # preço de tabela guardado enquanto a Black Friday está ligada
+    black_isca = db.Column(db.Boolean, nullable=False, default=False)  # Black: 1 por pedido e só com outro produto no carrinho
     na_loja = db.Column(db.Boolean, nullable=False, default=True)    # aparece na loja online (se tiver estoque livre)
     descricao = db.Column(db.String(300), nullable=True)             # texto curto na loja online
     foto = db.relationship('ProdutoFoto', uselist=False, lazy=True, cascade='all, delete-orphan')

@@ -4,7 +4,9 @@ Ligar:    preço = custo / (1 - (margem Black + MAIOR taxa de cartão))  -> arre
           (a taxa incide sobre o preço, então qualquer forma de pagamento cobre o custo + a margem).
           O preço de tabela fica guardado em Produto.preco_normal. Só baixa preço, nunca sobe.
           Como muda o próprio preço de tabela, vale no PDV, na loja e nos pedidos sem mexer em mais nada.
-Desligar: preco_normal volta para preco.
+          "Isca" (Produto.black_isca, ex.: biscoito a R$ 0,01): na loja só 1 por pedido e o preço Black só vale com outro
+          produto (que não seja isca) no carrinho; sozinho, sai pelo preço normal (ver loja.preco_no_carrinho).
+Desligar: preco_normal volta para preco e as iscas são desmarcadas.
 """
 from app import db
 from app.models import Empresa, Produto
@@ -38,7 +40,8 @@ def previa(margem):
                 if usado is None or abs(p.preco - usado) > 0.004:
                     manual = p.preco
             linhas.append({'id': p.id, 'nome': p.nome, 'custo': p.custo or 0, 'normal': normal, 'auto': auto, 'qtd': p.quantidade,
-                           'incluido': bool(p.preco_normal) if emp.black_ativo else True, 'manual': manual})
+                           'incluido': bool(p.preco_normal) if emp.black_ativo else True, 'manual': manual,
+                           'isca': bool(p.black_isca and p.preco_normal)})
         elif auto is not None:
             fora += 1
     return {'linhas': linhas, 'fora': fora, 'taxa': taxa, 'taxa_desc': desc}
@@ -49,13 +52,15 @@ def desligar():
     for p in Produto.query.filter(Produto.preco_normal.isnot(None)):
         p.preco, p.preco_normal = p.preco_normal, None
         n += 1
+    Produto.query.filter(Produto.black_isca.is_(True)).update({'black_isca': False})
     Empresa.atual().black_ativo = False
     return n
 
 
-def ligar(margem, escolhas=None):
+def ligar(margem, escolhas=None, iscas=()):
     """(Re)liga com a margem dada: devolve os preços normais primeiro, então dá para recalcular com a Black ligada.
-    escolhas = {produto_id: False (fica fora) | float (preço manual) | None (fórmula)}; quem não está lá segue a fórmula."""
+    escolhas = {produto_id: False (fica fora) | float (preço manual) | None (fórmula)}; quem não está lá segue a fórmula.
+    iscas = ids marcados como isca (só valem se o produto entrou na Black)."""
     escolhas = escolhas or {}
     desligar()
     taxa, _ = taxa_maxima()
@@ -70,6 +75,7 @@ def ligar(margem, escolhas=None):
             novo = preco_black(p.custo, p.preco, margem, taxa)
         if novo is not None:
             p.preco_normal, p.preco = p.preco, novo
+            p.black_isca = p.id in iscas
             n += 1
     emp = Empresa.atual()
     emp.black_ativo, emp.black_margem = True, margem
