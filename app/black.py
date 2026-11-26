@@ -22,20 +22,26 @@ def preco_black(custo, preco_atual, margem, taxa):
 
 
 def previa(margem):
-    """Como fica cada produto COM ESTOQUE (o que a tela mostra) e quantos produtos do cadastro mudam."""
+    """Linhas da tela: produtos COM ESTOQUE (dá para tirar da Black ou pôr um preço manual, ex.: 0,01 para chamar atenção).
+    Produto sem estoque não aparece: segue a fórmula (se chegar estoque durante a Black, já entra com preço Black)."""
     taxa, desc = taxa_maxima()
     emp = Empresa.atual()
-    linhas, muda = [], 0
-    for p in Produto.query.filter(Produto.custo > 0).order_by(Produto.nome):
+    linhas, fora = [], 0
+    for p in Produto.query.order_by(Produto.nome):
         normal = p.preco_normal or p.preco
-        black = (p.preco if p.preco_normal else None) if emp.black_ativo else preco_black(p.custo, normal, margem, taxa)
-        if black is None:
-            continue
-        muda += 1
+        auto = preco_black(p.custo, normal, margem, taxa)
         if (p.quantidade or 0) > 0:
-            linhas.append({'nome': p.nome, 'custo': p.custo, 'normal': normal, 'black': black,
-                           'pct': round(100 * (1 - black / normal)) if normal else 0, 'qtd': p.quantidade})
-    return {'linhas': linhas, 'muda': muda, 'taxa': taxa, 'taxa_desc': desc}
+            manual = None
+            if emp.black_ativo and p.preco_normal:
+                # preço diferente do que a fórmula daria na margem em uso = foi digitado à mão
+                usado = preco_black(p.custo, normal, emp.black_margem, taxa)
+                if usado is None or abs(p.preco - usado) > 0.004:
+                    manual = p.preco
+            linhas.append({'id': p.id, 'nome': p.nome, 'custo': p.custo or 0, 'normal': normal, 'auto': auto, 'qtd': p.quantidade,
+                           'incluido': bool(p.preco_normal) if emp.black_ativo else True, 'manual': manual})
+        elif auto is not None:
+            fora += 1
+    return {'linhas': linhas, 'fora': fora, 'taxa': taxa, 'taxa_desc': desc}
 
 
 def desligar():
@@ -47,13 +53,21 @@ def desligar():
     return n
 
 
-def ligar(margem):
-    """(Re)liga com a margem dada: devolve os preços normais primeiro, então dá para recalcular com a Black ligada."""
+def ligar(margem, escolhas=None):
+    """(Re)liga com a margem dada: devolve os preços normais primeiro, então dá para recalcular com a Black ligada.
+    escolhas = {produto_id: False (fica fora) | float (preço manual) | None (fórmula)}; quem não está lá segue a fórmula."""
+    escolhas = escolhas or {}
     desligar()
     taxa, _ = taxa_maxima()
     n = 0
-    for p in Produto.query.filter(Produto.custo > 0):
-        novo = preco_black(p.custo, p.preco, margem, taxa)
+    for p in Produto.query:
+        e = escolhas.get(p.id)
+        if e is False:
+            continue
+        if isinstance(e, float):
+            novo = round(e, 2) if 0 < e < round(p.preco, 2) - 0.004 else None
+        else:
+            novo = preco_black(p.custo, p.preco, margem, taxa)
         if novo is not None:
             p.preco_normal, p.preco = p.preco, novo
             n += 1

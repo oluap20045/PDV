@@ -21,8 +21,12 @@
         .tabela-black td { color: #eee !important; background: transparent !important; border-color: #2a2a2a !important; }
         .tabela-black td s { color: #999; }
         .tabela-black td.preco-black { color: #f2c98a !important; }
+        .tabela-black tr.fora td { opacity: .45; }
+        .tabela-black input.manual { width: 92px; background: #1c1c1c; color: #fff; border-color: #444; }
+        .tabela-black input.manual::placeholder { color: #777; }
+        .tabela-black input.manual.is-invalid { border-color: #e0312b; box-shadow: 0 0 0 .2rem rgba(224, 49, 43, .35); }
     </style>
-    <div class="card mb-4 border-0 shadow-sm" style="background:#111;color:#f5f5f5">
+    <div class="card mb-4 border-0 shadow-sm" style="background:#111;color:#f5f5f5" id="black">
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h4 class="mb-0" style="color:#f2c98a">🖤 Black Friday
@@ -35,45 +39,90 @@
                     <button class="btn btn-light fw-bold">Desligar e voltar os preços</button></form>
                 {% endif %}
             </div>
-            <p class="small mb-3 mt-2" style="color:#bbb">Põe <strong>todo o cadastro</strong> a quase preço de custo, no PDV e na loja online, e muda a loja para o
+            <p class="small mb-3 mt-2" style="color:#bbb">Põe o cadastro a quase preço de custo, no PDV e na loja online, e muda a loja para o
                 tema Black Friday. Preço Black = custo ÷ (1 − margem − maior taxa do cartão{% if black.taxa %}: <strong>{{ '%g'|format(black.taxa) }}%</strong>
                 <span class="opacity-75">({{ black.taxa_desc }})</span>{% endif %}), arredondado para cima nos 10 centavos — qualquer forma de pagamento
-                cobre o custo. O preço normal fica guardado e volta inteiro ao desligar. Produto sem custo, ou que já está mais barato, não muda.
-                <strong>Os outros combos/promoções continuam valendo: pause-os aqui embaixo.</strong></p>
-            <form method="POST" action="{{ url_for('combos.black_friday') }}" class="d-flex flex-wrap align-items-end gap-2"
-                  onsubmit="return confirm(this.dataset.msg)"
-                  data-msg="{{ 'Recalcular os preços Black com a nova margem?' if empresa.black_ativo else 'Ligar a Black Friday? ' ~ black.muda ~ ' produto(s) vão para o preço Black no PDV e na loja.' }}">
+                cobre o custo. Na tabela você <strong>tira produtos</strong> da Black (desmarque) ou põe um <strong>preço manual</strong> (ex.: 0,01 para chamar atenção).
+                O preço normal fica guardado e volta inteiro ao desligar. <strong>Os outros combos/promoções continuam valendo: pause-os aqui embaixo.</strong></p>
+            <form method="POST" action="{{ url_for('combos.black_friday') }}" id="form-black" data-taxa="{{ black.taxa }}"
+                  data-ligada="{{ 1 if empresa.black_ativo else 0 }}" onsubmit="return confirm(this.dataset.msg)">
                 <input type="hidden" name="acao" value="ligar">
-                <div>
-                    <label class="form-label small mb-1" for="margem-black" style="color:#bbb">Margem na Black (%)</label>
-                    <input type="number" step="0.5" min="0" max="50" class="form-control" id="margem-black" name="margem" value="{{ '%g'|format(margem) }}" style="width:120px">
+                <div class="d-flex flex-wrap align-items-end gap-2">
+                    <div>
+                        <label class="form-label small mb-1" for="margem-black" style="color:#bbb">Margem na Black (%)</label>
+                        <input type="number" step="0.5" min="0" max="50" class="form-control" id="margem-black" name="margem" value="{{ '%g'|format(margem) }}" style="width:120px">
+                    </div>
+                    <button class="btn fw-bold" style="background:#f2c98a;color:#111">{{ '💾 Salvar e recalcular' if empresa.black_ativo else '🖤 Ligar Black Friday' }}</button>
+                    <span class="small ms-1" style="color:#bbb" id="black-resumo"></span>
                 </div>
-                {% if not empresa.black_ativo %}
-                <a class="btn btn-outline-light" href="#" onclick="location.href='{{ url_for('combos.lista') }}?margem=' + encodeURIComponent(document.getElementById('margem-black').value) + '#black'; return false;">Ver prévia</a>
-                {% endif %}
-                <button class="btn fw-bold" style="background:#f2c98a;color:#111">{{ 'Recalcular com essa margem' if empresa.black_ativo else '🖤 Ligar Black Friday' }}</button>
-            </form>
-            {% if black.linhas %}
-            <details class="mt-3" id="black" {{ 'open' if request.args.get('margem') }}>
-                <summary class="small" style="color:#f2c98a;cursor:pointer">{{ 'Preços Black valendo' if empresa.black_ativo else 'Prévia com ' ~ ('%g'|format(margem)) ~ '% de margem' }}:
-                    {{ black.muda }} produto(s) do cadastro{% if not empresa.black_ativo %} mudariam{% endif %} · {{ black.linhas|length }} com estoque</summary>
-                <div class="table-responsive mt-2">
+                {% if black.linhas %}
+                <div class="table-responsive mt-3">
                 <table class="table table-sm mb-0 small align-middle tabela-black">
-                    <thead><tr><th>Produto</th><th class="text-end">Estoque</th><th class="text-end">Custo</th><th class="text-end">Normal</th>
-                        <th class="text-end">Black</th><th class="text-end">Desconto</th></tr></thead>
+                    <thead><tr><th style="width:1%">Entra</th><th>Produto <span class="fw-normal opacity-75">(com estoque)</span></th><th class="text-end">Estoque</th>
+                        <th class="text-end">Custo</th><th class="text-end">Normal</th><th class="text-end">Fórmula</th><th class="text-end">Preço manual</th>
+                        <th class="text-end">Fica</th><th class="text-end">Desconto</th></tr></thead>
                     <tbody>
                     {% for l in black.linhas %}
-                    <tr><td>{{ l.nome }}</td><td class="text-end">{{ l.qtd }}</td><td class="text-end">{{ brl(l.custo) }}</td>
-                        <td class="text-end"><s>{{ brl(l.normal) }}</s></td><td class="text-end fw-bold preco-black">{{ brl(l.black) }}</td>
-                        <td class="text-end">−{{ l.pct }}%</td></tr>
+                    <tr data-custo="{{ l.custo }}" data-normal="{{ l.normal }}">
+                        <td><input type="hidden" name="ids" value="{{ l.id }}">
+                            <input class="form-check-input inc" type="checkbox" name="inc_{{ l.id }}" value="1" {{ 'checked' if l.incluido }}></td>
+                        <td>{{ l.nome }}</td><td class="text-end">{{ l.qtd }}</td>
+                        <td class="text-end">{{ brl(l.custo) if l.custo else '—' }}</td>
+                        <td class="text-end"><s>{{ brl(l.normal) }}</s></td>
+                        <td class="text-end auto">—</td>
+                        <td class="text-end"><input type="text" inputmode="decimal" class="form-control form-control-sm manual d-inline-block text-end"
+                                   name="man_{{ l.id }}" placeholder="auto" autocomplete="off"
+                                   value="{{ ('%.2f'|format(l.manual)).replace('.', ',') if l.manual is not none else '' }}"></td>
+                        <td class="text-end fw-bold preco-black fica">—</td>
+                        <td class="text-end pct">—</td>
+                    </tr>
                     {% endfor %}
                     </tbody>
                 </table>
                 </div>
-            </details>
-            {% endif %}
+                {% if black.fora %}<p class="small mt-2 mb-0" style="color:#999">+ {{ black.fora }} produto(s) sem estoque entram pela fórmula
+                    (se chegar estoque durante a Black, já aparecem com preço Black).</p>{% endif %}
+                {% endif %}
+            </form>
         </div>
     </div>
+    <script>
+    (function () {
+        // mesma conta do app/precificacao.py: custo / (1 - (margem + taxa)/100), para cima nos 10 centavos
+        const form = document.getElementById('form-black');
+        if (!form) return;
+        const taxa = parseFloat(form.dataset.taxa) || 0, margemEl = document.getElementById('margem-black');
+        const brl = v => 'R$ ' + v.toFixed(2).replace('.', ',');
+        const num = t => parseFloat(String(t).replace('R$', '').replace(',', '.').trim());
+        function calcular() {
+            const m = parseFloat(String(margemEl.value).replace(',', '.')) || 0;
+            let entram = 0, manuais = 0;
+            form.querySelectorAll('tbody tr').forEach(tr => {
+                const custo = parseFloat(tr.dataset.custo), normal = parseFloat(tr.dataset.normal);
+                const div = 1 - (m + taxa) / 100;
+                let auto = custo > 0 && div > 0.05 ? Math.ceil(Math.round(custo / div * 10 * 1e6) / 1e6) / 10 : null;
+                if (auto !== null && auto >= normal - 0.004) auto = null;
+                tr.querySelector('.auto').textContent = auto === null ? 'não muda' : brl(auto);
+                const inc = tr.querySelector('.inc').checked, manEl = tr.querySelector('.manual');
+                const man = manEl.value.trim() ? num(manEl.value) : null;
+                const manOk = man !== null && man > 0 && man < normal;
+                manEl.classList.toggle('is-invalid', man !== null && !manOk);
+                const fica = !inc ? null : (manOk ? man : auto);
+                tr.classList.toggle('fora', fica === null);
+                tr.querySelector('.fica').textContent = fica === null ? brl(normal) : brl(fica);
+                tr.querySelector('.pct').textContent = fica === null ? '—' : '−' + Math.floor((1 - fica / normal) * 100) + '%';
+                if (fica !== null) { entram++; if (manOk) manuais++; }
+            });
+            document.getElementById('black-resumo').textContent =
+                entram + ' com estoque entram' + (manuais ? ' (' + manuais + ' com preço manual)' : '');
+            form.dataset.msg = (form.dataset.ligada === '1' ? 'Salvar e recalcular a Black? ' : 'Ligar a Black Friday? ') +
+                entram + ' produto(s) com estoque vão para o preço Black no PDV e na loja.';
+        }
+        form.addEventListener('input', calcular);
+        form.addEventListener('change', calcular);
+        calcular();
+    })();
+    </script>
 
     {% if not combos %}
         <div class="alert alert-light border">Nenhum combo ainda. Crie o primeiro: por exemplo

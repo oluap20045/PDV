@@ -222,7 +222,32 @@ def black_friday():
     if not 0 <= margem <= 50:
         flash('Margem da Black: use um número entre 0 e 50 (%).', 'danger')
         return redirect(url_for('combos.lista'))
-    n = black.ligar(margem)
+    escolhas, erros = {}, []
+    for pid in request.form.getlist('ids'):
+        if not pid.isdigit():
+            continue
+        prod = db.session.get(Produto, int(pid))
+        if prod is None:
+            continue
+        if request.form.get(f'inc_{pid}') != '1':
+            escolhas[prod.id] = False
+            continue
+        txt = (request.form.get(f'man_{pid}') or '').strip().replace('R$', '').replace(',', '.').strip()
+        if not txt:
+            escolhas[prod.id] = None
+            continue
+        try:
+            valor = round(float(txt), 2)
+        except ValueError:
+            valor = -1
+        normal = prod.preco_normal or prod.preco
+        if not 0 < valor < normal:
+            erros.append(f'{prod.nome} ({txt}: tem que ser maior que zero e menor que o normal, R$ {normal:.2f})')
+        escolhas[prod.id] = valor
+    if erros:
+        flash('Preço manual inválido: ' + '; '.join(erros).replace('.', ','), 'danger')
+        return redirect(url_for('combos.lista', margem=f'{margem:g}'))
+    n = black.ligar(margem, escolhas)
     db.session.commit()
     flash(f'🖤 Black Friday ligada com {margem:g}% de margem: {n} produto(s) com preço Black no PDV e na loja. '
           'Lembre de pausar os outros combos/promoções.', 'success')

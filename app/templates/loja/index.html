@@ -108,7 +108,7 @@
             <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}"
                      data-ordem="{{ loop.index0 }}" data-preco="{{ '%.2f'|format(i.promo or i.preco) }}">
                 <div class="produto-foto">
-                    {% if i.de and not i.promo %}<span class="selo-combo selo-black">−{{ ((1 - i.preco / i.de) * 100)|round|int }}%</span>
+                    {% if i.de and not i.promo %}<span class="selo-combo selo-black">−{{ ((1 - i.preco / i.de) * 100)|int }}%</span>
                     {% elif i.promo %}<span class="selo-combo selo-promo">Promoção</span>
                     {% else %}{% for c in combos if c.id in i.combos and not c.promocao %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}{% endif %}
                     {% if i.max == 1 %}<span class="selo-poucos">Última unidade!</span>{% endif %}
