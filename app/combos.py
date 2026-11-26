@@ -195,6 +195,13 @@ def lista():
     estoque = {c.id: sum(max(p.quantidade or 0, 0) for p in c.produtos) for c in combos}
     usos = dict(db.session.query(ItemVenda.combo_id, db.func.count(db.distinct(ItemVenda.venda_id)))
                 .filter(ItemVenda.combo_id.isnot(None)).group_by(ItemVenda.combo_id).all())
+    from app.models import Empresa
+    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos, estoque=estoque, empresa=Empresa.atual())
+
+
+@bp.route('/black')
+def black_tela():
+    """Black Friday numa página própria (usada 1x por ano; na lista de promoções fica só uma faixa)."""
     from app import black
     from app.models import Empresa
     emp = Empresa.atual()
@@ -202,8 +209,7 @@ def lista():
         margem = float((request.args.get('margem') or '').replace(',', '.'))
     except ValueError:
         margem = emp.black_margem if emp.black_margem is not None else black.MARGEM_PADRAO
-    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos, estoque=estoque,
-                           empresa=emp, margem=margem, black=black.previa(margem))
+    return render_template('black.html', empresa=emp, margem=margem, black=black.previa(margem))
 
 
 @bp.route('/black', methods=['POST'])
@@ -214,14 +220,14 @@ def black_friday():
         n = black.desligar()
         db.session.commit()
         flash(f'Black Friday desligada: {n} produto(s) voltaram ao preço normal. A loja voltou ao tema normal.', 'success')
-        return redirect(url_for('combos.lista'))
+        return redirect(url_for('combos.black_tela'))
     try:
         margem = float((request.form.get('margem') or '').replace(',', '.'))
     except ValueError:
         margem = -1
     if not 0 <= margem <= 50:
         flash('Margem da Black: use um número entre 0 e 50 (%).', 'danger')
-        return redirect(url_for('combos.lista'))
+        return redirect(url_for('combos.black_tela'))
     escolhas, erros = {}, []
     for pid in request.form.getlist('ids'):
         if not pid.isdigit():
@@ -246,13 +252,13 @@ def black_friday():
         escolhas[prod.id] = valor
     if erros:
         flash('Preço manual inválido: ' + '; '.join(erros).replace('.', ','), 'danger')
-        return redirect(url_for('combos.lista', margem=f'{margem:g}'))
+        return redirect(url_for('combos.black_tela', margem=f'{margem:g}'))
     iscas = {int(pid) for pid in request.form.getlist('ids') if pid.isdigit() and request.form.get(f'isca_{pid}') == '1'}
     n = black.ligar(margem, escolhas, iscas)
     db.session.commit()
     flash(f'🖤 Black Friday ligada com {margem:g}% de margem: {n} produto(s) com preço Black no PDV e na loja. '
           'Lembre de pausar os outros combos/promoções.', 'success')
-    return redirect(url_for('combos.lista'))
+    return redirect(url_for('combos.black_tela'))
 
 
 @bp.route('/novo', methods=['GET', 'POST'])
