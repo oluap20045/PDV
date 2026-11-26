@@ -90,7 +90,9 @@ def _vitrine():
         if disp > 0 and p.preco > 0:
             itens.append({'id': p.id, 'nome': nome_vitrine(p.nome), 'preco': round(p.preco, 2), 'max': min(disp, MAX_POR_ITEM),
                           'categoria': (p.categoria or 'Outros').strip() or 'Outros', 'descricao': p.descricao or '',
-                          'foto': url_for('loja.foto', id=p.id, v=p.foto.versao) if p.foto else None})
+                          'foto': url_for('loja.foto', id=p.id, v=p.foto.versao) if p.foto else None,
+                          # Black Friday: preço de tabela guardado = "de R$ X por R$ Y" e o % de desconto
+                          'de': round(p.preco_normal, 2) if p.preco_normal and p.preco_normal > p.preco + 0.004 else None})
     return itens
 
 
@@ -161,6 +163,8 @@ def index():
         c['de_min'] = opcoes[-1]['preco'] if opcoes else 0
         c['pct'] = round(100 * (1 - c['preco'] / c['de'])) if c['de'] else 0
         c['max'] = sum(por_id[pid]['max'] for pid in c['produtos'])
+    if emp.black_ativo:                       # na Black, combo que não sai mais barato que o preço Black some da vitrine
+        combos = [c for c in combos if c['economia_max'] > 0.004]
     combos.sort(key=lambda c: not c['promocao'])                           # promoções primeiro
     for i in itens:
         i['combos'] = [c['id'] for c in combos if i['id'] in c['produtos']]

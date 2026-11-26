@@ -2,6 +2,8 @@
 
 {% block content %}
     <h2>Editar Produto: {{ produto.nome }}</h2>
+    {% if produto.preco_normal %}<div class="alert alert-dark py-2">🖤 Black Friday ligada: o preço abaixo é o <strong>preço Black</strong>.
+        Ao desligar, ele volta para o normal: <strong>R$ {{ '%.2f'|format(produto.preco_normal)|replace('.', ',') }}</strong>.</div>{% endif %}
     
     <form method="POST">
         <div class="mb-3">

@@ -14,6 +14,67 @@
         Cada unidade dá baixa no estoque do próprio produto. Sem estoque para fechar o combo, ele some do PDV e da loja
         sozinho e volta quando o estoque chegar.</p>
 
+    {# ---------------- Black Friday (1x por ano) #}
+    <style>
+        .tabela-black { --bs-table-bg: transparent; --bs-table-color: #eee; color: #eee; }
+        .tabela-black th { color: #f2c98a !important; background: transparent !important; border-color: #333 !important; }
+        .tabela-black td { color: #eee !important; background: transparent !important; border-color: #2a2a2a !important; }
+        .tabela-black td s { color: #999; }
+        .tabela-black td.preco-black { color: #f2c98a !important; }
+    </style>
+    <div class="card mb-4 border-0 shadow-sm" style="background:#111;color:#f5f5f5">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h4 class="mb-0" style="color:#f2c98a">🖤 Black Friday
+                    {% if empresa.black_ativo %}<span class="badge bg-warning text-dark align-middle ms-1">LIGADA · margem {{ '%g'|format(empresa.black_margem) }}%</span>
+                    {% else %}<span class="badge bg-secondary align-middle ms-1">desligada</span>{% endif %}</h4>
+                {% if empresa.black_ativo %}
+                <form method="POST" action="{{ url_for('combos.black_friday') }}"
+                      onsubmit="return confirm('Desligar a Black Friday? Todos os produtos voltam ao preço normal e a loja volta ao tema de sempre.')">
+                    <input type="hidden" name="acao" value="desligar">
+                    <button class="btn btn-light fw-bold">Desligar e voltar os preços</button></form>
+                {% endif %}
+            </div>
+            <p class="small mb-3 mt-2" style="color:#bbb">Põe <strong>todo o cadastro</strong> a quase preço de custo, no PDV e na loja online, e muda a loja para o
+                tema Black Friday. Preço Black = custo ÷ (1 − margem − maior taxa do cartão{% if black.taxa %}: <strong>{{ '%g'|format(black.taxa) }}%</strong>
+                <span class="opacity-75">({{ black.taxa_desc }})</span>{% endif %}), arredondado para cima nos 10 centavos — qualquer forma de pagamento
+                cobre o custo. O preço normal fica guardado e volta inteiro ao desligar. Produto sem custo, ou que já está mais barato, não muda.
+                <strong>Os outros combos/promoções continuam valendo: pause-os aqui embaixo.</strong></p>
+            <form method="POST" action="{{ url_for('combos.black_friday') }}" class="d-flex flex-wrap align-items-end gap-2"
+                  onsubmit="return confirm(this.dataset.msg)"
+                  data-msg="{{ 'Recalcular os preços Black com a nova margem?' if empresa.black_ativo else 'Ligar a Black Friday? ' ~ black.muda ~ ' produto(s) vão para o preço Black no PDV e na loja.' }}">
+                <input type="hidden" name="acao" value="ligar">
+                <div>
+                    <label class="form-label small mb-1" for="margem-black" style="color:#bbb">Margem na Black (%)</label>
+                    <input type="number" step="0.5" min="0" max="50" class="form-control" id="margem-black" name="margem" value="{{ '%g'|format(margem) }}" style="width:120px">
+                </div>
+                {% if not empresa.black_ativo %}
+                <a class="btn btn-outline-light" href="#" onclick="location.href='{{ url_for('combos.lista') }}?margem=' + encodeURIComponent(document.getElementById('margem-black').value) + '#black'; return false;">Ver prévia</a>
+                {% endif %}
+                <button class="btn fw-bold" style="background:#f2c98a;color:#111">{{ 'Recalcular com essa margem' if empresa.black_ativo else '🖤 Ligar Black Friday' }}</button>
+            </form>
+            {% if black.linhas %}
+            <details class="mt-3" id="black" {{ 'open' if request.args.get('margem') }}>
+                <summary class="small" style="color:#f2c98a;cursor:pointer">{{ 'Preços Black valendo' if empresa.black_ativo else 'Prévia com ' ~ ('%g'|format(margem)) ~ '% de margem' }}:
+                    {{ black.muda }} produto(s) do cadastro{% if not empresa.black_ativo %} mudariam{% endif %} · {{ black.linhas|length }} com estoque</summary>
+                <div class="table-responsive mt-2">
+                <table class="table table-sm mb-0 small align-middle tabela-black">
+                    <thead><tr><th>Produto</th><th class="text-end">Estoque</th><th class="text-end">Custo</th><th class="text-end">Normal</th>
+                        <th class="text-end">Black</th><th class="text-end">Desconto</th></tr></thead>
+                    <tbody>
+                    {% for l in black.linhas %}
+                    <tr><td>{{ l.nome }}</td><td class="text-end">{{ l.qtd }}</td><td class="text-end">{{ brl(l.custo) }}</td>
+                        <td class="text-end"><s>{{ brl(l.normal) }}</s></td><td class="text-end fw-bold preco-black">{{ brl(l.black) }}</td>
+                        <td class="text-end">−{{ l.pct }}%</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+
     {% if not combos %}
         <div class="alert alert-light border">Nenhum combo ainda. Crie o primeiro: por exemplo
             <em>Trufas laCreme 13 g — 4 por R$ 12</em>.</div>

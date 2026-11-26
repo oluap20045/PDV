@@ -195,7 +195,38 @@ def lista():
     estoque = {c.id: sum(max(p.quantidade or 0, 0) for p in c.produtos) for c in combos}
     usos = dict(db.session.query(ItemVenda.combo_id, db.func.count(db.distinct(ItemVenda.venda_id)))
                 .filter(ItemVenda.combo_id.isnot(None)).group_by(ItemVenda.combo_id).all())
-    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos, estoque=estoque)
+    from app import black
+    from app.models import Empresa
+    emp = Empresa.atual()
+    try:
+        margem = float((request.args.get('margem') or '').replace(',', '.'))
+    except ValueError:
+        margem = emp.black_margem if emp.black_margem is not None else black.MARGEM_PADRAO
+    return render_template('combos.html', combos=combos, hoje=hoje, usos=usos, estoque=estoque,
+                           empresa=emp, margem=margem, black=black.previa(margem))
+
+
+@bp.route('/black', methods=['POST'])
+def black_friday():
+    from app import black
+    acao = request.form.get('acao')
+    if acao == 'desligar':
+        n = black.desligar()
+        db.session.commit()
+        flash(f'Black Friday desligada: {n} produto(s) voltaram ao preço normal. A loja voltou ao tema normal.', 'success')
+        return redirect(url_for('combos.lista'))
+    try:
+        margem = float((request.form.get('margem') or '').replace(',', '.'))
+    except ValueError:
+        margem = -1
+    if not 0 <= margem <= 50:
+        flash('Margem da Black: use um número entre 0 e 50 (%).', 'danger')
+        return redirect(url_for('combos.lista'))
+    n = black.ligar(margem)
+    db.session.commit()
+    flash(f'🖤 Black Friday ligada com {margem:g}% de margem: {n} produto(s) com preço Black no PDV e na loja. '
+          'Lembre de pausar os outros combos/promoções.', 'success')
+    return redirect(url_for('combos.lista'))
 
 
 @bp.route('/novo', methods=['GET', 'POST'])

@@ -407,3 +407,38 @@ details.horario .horarios tr.hoje { background: rgba(200, 132, 63, .25); }
 .sorteio-apto input { width: 100%; min-width: 0; }
 
 @media (prefers-reduced-motion: reduce) { .produto, .oferta, .topo-carrinho, .qtd .adicionar { transition: none; } .produto:hover, .oferta:hover { transform: none; } }
+
+/* ---------- Black Friday (Empresa.black_ativo → <body class="black">): preto + dourado; cartões continuam claros */
+.preco-promo .economia { display: block; margin-top: 4px; font: 700 .72rem/1.2 "Inter", system-ui, sans-serif; color: var(--verde); letter-spacing: 0; }
+.selo-black { background: #111; color: var(--dourado); font-size: .85rem; padding: 4px 11px; box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .6); }
+body.black { background: #0c0c0c; color: #f2f2f2; --vermelho-promo: #e0312b; }
+body.black .topo { background: rgba(0, 0, 0, .94); }
+body.black .marca-icone { background: #1f1f1f; }
+body.black .topo-carrinho, body.black .barra-qtd { background: var(--dourado); color: #111; }
+body.black .selo { border-color: #000; }
+body.black .hero {
+    background: #000; border: 1px solid #2a2a2a;
+    background-image:
+        repeating-linear-gradient(135deg, rgba(242, 201, 138, .06) 0 2px, transparent 2px 14px),
+        radial-gradient(120% 90% at 100% 0%, #3a2a12 0, transparent 60%);
+}
+body.black .hero-sobre { color: var(--dourado); }
+body.black .hero h1 { text-transform: uppercase; letter-spacing: -.01em; font-size: clamp(1.75rem, 6.4vw, 2.7rem); }
+@media (min-width: 820px) { body.black .hero h1, body.black .hero-sub { max-width: calc(100% - 380px); } }
+body.black .hero-sub { color: #cfcfcf; }
+body.black .secao-cabeca h2 { color: #fff; }
+body.black .secao-cabeca p, body.black .ordenar { color: #bdbdbd; }
+body.black .categorias { background: #0c0c0c; }
+body.black .chip { background: #1a1a1a; border-color: #333; color: #e8e8e8; }
+body.black .chip.ativo { background: var(--dourado); border-color: var(--dourado); color: #111; }
+body.black .ordenar select { background: #1a1a1a; border-color: #333; color: #f2f2f2; }
+body.black .produto, body.black .oferta { box-shadow: 0 10px 28px -16px rgba(0, 0, 0, .9); }
+body.black .qtd .adicionar { background: #111; color: var(--dourado); }
+body.black .qtd .adicionar:hover { background: #2a2a2a; }
+body.black .barra-carrinho { background: #000; border: 1px solid #333; }
+body.black .rodape { background: #000; color: #9a9a9a; }
+body.black .aviso { background: #1a1a1a; color: #eee; border-left-color: var(--dourado); }
+body.black .chamada-sorteio { background: #1a1a1a; color: #eee; }
+body.black .chamada-sorteio small { color: #aaa; }
+body.black .chamada-sorteio em { color: var(--dourado); }
+body.black .vazio, body.black .secao-cabeca { color: #eee; }

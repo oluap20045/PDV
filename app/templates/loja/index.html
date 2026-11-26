@@ -11,9 +11,15 @@
 {% block content %}
     {% set hoje = empresa.horario_agora() %}
     <section class="hero">
+        {% if empresa.black_ativo %}
+        <p class="hero-sobre">Black Friday · queima de estoque</p>
+        <h1>Black Friday<br><em>quase a preço de custo.</em></h1>
+        <p class="hero-sub">Tudo da lojinha com desconto, enquanto durar o estoque. Faça o pedido em 3 toques e pague só na entrega.</p>
+        {% else %}
         <p class="hero-sobre">Chocolates a pronta entrega</p>
         <h1>Bateu a vontade?<br><em>A gente leva.</em></h1>
         <p class="hero-sub">Escolha seus chocolates, faça o pedido em 3 toques e pague só na entrega.</p>
+        {% endif %}
         {% set vitrine_fotos = itens|selectattr('foto')|map(attribute='foto')|list %}
         {% if vitrine_fotos|length >= 3 %}
         <div class="hero-fotos" aria-hidden="true">
@@ -102,7 +108,8 @@
             <article class="produto" data-id="{{ i.id }}" data-cat="{{ i.categoria }}" data-combos="{{ i.combos|join(' ') }}"
                      data-ordem="{{ loop.index0 }}" data-preco="{{ '%.2f'|format(i.promo or i.preco) }}">
                 <div class="produto-foto">
-                    {% if i.promo %}<span class="selo-combo selo-promo">Promoção</span>
+                    {% if i.de and not i.promo %}<span class="selo-combo selo-black">−{{ ((1 - i.preco / i.de) * 100)|round|int }}%</span>
+                    {% elif i.promo %}<span class="selo-combo selo-promo">Promoção</span>
                     {% else %}{% for c in combos if c.id in i.combos and not c.promocao %}{% if loop.first %}<span class="selo-combo">{{ c.quantidade }} por {{ reais(c.preco) }}</span>{% endif %}{% endfor %}{% endif %}
                     {% if i.max == 1 %}<span class="selo-poucos">Última unidade!</span>{% endif %}
                     {% if i.foto %}<img src="{{ i.foto }}" alt="{{ i.nome }}" loading="lazy">
@@ -112,7 +119,9 @@
                     <h3>{{ i.nome }}</h3>
                     {% if i.descricao %}<p class="desc">{{ i.descricao }}</p>{% endif %}
                     <div class="produto-rodape">
-                        {% if i.promo %}<span class="preco preco-promo"><s>{{ reais(i.preco) }}</s> <strong>{{ reais(i.promo) }}</strong></span>
+                        {% if i.promo %}<span class="preco preco-promo"><s>{{ reais(i.de or i.preco) }}</s> <strong>{{ reais(i.promo) }}</strong></span>
+                        {% elif i.de %}<span class="preco preco-promo"><s>{{ reais(i.de) }}</s> <strong>{{ reais(i.preco) }}</strong>
+                            <small class="economia">economize {{ reais(i.de - i.preco) }}</small></span>
                         {% else %}<strong class="preco">R$ {{ ('%.2f'|format(i.preco)).replace('.', ',') }}</strong>{% endif %}
                         <div class="qtd" data-controle="{{ i.id }}">
                             <button type="button" class="adicionar">Adicionar</button>
